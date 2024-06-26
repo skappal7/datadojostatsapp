@@ -3,8 +3,10 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.figure_factory as ff
+from statsmodels.stats.anova import anova_lm
 from statsmodels.formula.api import ols
-from scipy.stats import ttest_ind, f_oneway
+from scipy import stats
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import itertools
@@ -13,6 +15,7 @@ import itertools
 st.set_page_config(page_title="Data Dojo Stats Assistant", layout="wide")
 
 # Utility function to load data
+@st.cache_data
 def load_data(file):
     try:
         if file.name.endswith('.csv'):
@@ -67,13 +70,15 @@ def main():
 # Define phase function
 def define_phase(data):
     st.header("Define Phase")
-    st.write("Guidance: In this phase, define the problem, project scope, and objectives.")
     
     st.subheader("Project Charter")
-    project_name = st.text_input("Project Name")
-    problem_statement = st.text_area("Problem Statement")
-    project_scope = st.text_area("Project Scope")
-    project_goals = st.text_area("Project Goals")
+    col1, col2 = st.columns(2)
+    with col1:
+        project_name = st.text_input("Project Name")
+        problem_statement = st.text_area("Problem Statement")
+    with col2:
+        project_scope = st.text_area("Project Scope")
+        project_goals = st.text_area("Project Goals")
     
     if st.button("Generate Project Charter"):
         st.write("### Project Charter")
@@ -83,11 +88,15 @@ def define_phase(data):
         st.write(f"**Project Goals:** {project_goals}")
 
     st.subheader("SIPOC Diagram")
-    suppliers = st.text_area("Suppliers")
-    inputs = st.text_area("Inputs")
-    process = st.text_area("Process")
-    outputs = st.text_area("Outputs")
-    customers = st.text_area("Customers")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        suppliers = st.text_area("Suppliers")
+        inputs = st.text_area("Inputs")
+    with col2:
+        process = st.text_area("Process")
+    with col3:
+        outputs = st.text_area("Outputs")
+        customers = st.text_area("Customers")
     
     if st.button("Generate SIPOC Diagram"):
         sipoc_data = {
@@ -99,23 +108,96 @@ def define_phase(data):
 # Measure phase function
 def measure_phase(data):
     st.header("Measure Phase")
-    st.write("Guidance: In this phase, measure the current process and collect relevant data.")
     
+    analysis_type = st.selectbox("Select Analysis Type", ["Descriptive Statistics", "Graphical Analysis", "Measurement System Analysis", "Process Capability Analysis"])
+    
+    if analysis_type == "Descriptive Statistics":
+        descriptive_statistics(data)
+    elif analysis_type == "Graphical Analysis":
+        graphical_analysis(data)
+    elif analysis_type == "Measurement System Analysis":
+        measurement_system_analysis(data)
+    elif analysis_type == "Process Capability Analysis":
+        process_capability_analysis(data)
+
+def descriptive_statistics(data):
     st.subheader("Descriptive Statistics")
-    if st.button("Calculate Descriptive Statistics"):
-        st.write(data.describe())
+    selected_columns = st.multiselect("Select columns for analysis", data.columns)
+    if selected_columns:
+        st.write(data[selected_columns].describe())
+    else:
+        st.write("Please select at least one column for analysis.")
+
+def graphical_analysis(data):
+    st.subheader("Graphical Analysis")
+    chart_type = st.selectbox("Select chart type", ["Histogram", "Box Plot", "Scatter Plot"])
     
-    st.subheader("Data Visualization")
-    column = st.selectbox("Select a column for visualization", data.select_dtypes(include=[np.number]).columns)
-    chart_type = st.radio("Select chart type", ["Histogram", "Box Plot"])
+    if chart_type == "Histogram":
+        column = st.selectbox("Select column for histogram", data.select_dtypes(include=[np.number]).columns)
+        fig = px.histogram(data, x=column)
+        st.plotly_chart(fig)
     
-    if st.button("Generate Chart"):
-        if chart_type == "Histogram":
-            fig = px.histogram(data, x=column)
+    elif chart_type == "Box Plot":
+        y_column = st.selectbox("Select column for box plot", data.select_dtypes(include=[np.number]).columns)
+        x_column = st.selectbox("Select grouping column (optional)", ["None"] + list(data.columns))
+        if x_column != "None":
+            fig = px.box(data, x=x_column, y=y_column)
         else:
-            fig = px.box(data, y=column)
+            fig = px.box(data, y=y_column)
+        st.plotly_chart(fig)
+    
+    elif chart_type == "Scatter Plot":
+        x_column = st.selectbox("Select X-axis column", data.select_dtypes(include=[np.number]).columns)
+        y_column = st.selectbox("Select Y-axis column", data.select_dtypes(include=[np.number]).columns)
+        fig = px.scatter(data, x=x_column, y=y_column)
         st.plotly_chart(fig)
 
+def measurement_system_analysis(data):
+    st.subheader("Measurement System Analysis (Gage R&R)")
+    part_col = st.selectbox("Select Part Column", data.columns)
+    operator_col = st.selectbox("Select Operator Column", data.columns)
+    measurement_col = st.selectbox("Select Measurement Column", data.select_dtypes(include=[np.number]).columns)
+    
+    if st.button("Perform Gage R&R Analysis"):
+        try:
+            gage_data = data[[part_col, operator_col, measurement_col]]
+            gage_data.columns = ['Part', 'Operator', 'Measurement']
+            
+            # ANOVA
+            model = ols('Measurement ~ C(Part) + C(Operator) + C(Part):C(Operator)', data=gage_data).fit()
+            anova_table = anova_lm(model, typ=2)
+            
+            # Variance components
+            ms_error = anova_table.loc['Residual', 'mean_sq']
+            ms_operator = anova_table.loc['C(Operator)', 'mean_sq']
+            ms_part = anova_table.loc['C(Part)', 'mean_sq']
+            ms_interaction = anova_table.loc['C(Part):C(Operator)', 'mean_sq']
+            
+            n_parts = gage_data['Part'].nunique()
+            n_operators = gage_data['Operator'].nunique()
+            n_replicates = len(gage_data) / (n_parts * n_operators)
+            
+            var_repeatability = ms_error
+            var_reproducibility = (ms_operator - ms_interaction) / (n_parts * n_replicates)
+            var_part = (ms_part - ms_interaction) / (n_operators * n_replicates)
+            var_total = var_repeatability + var_reproducibility + var_part
+            
+            # Results
+            st.write("### Gage R&R Results")
+            st.write(f"Total Variation: {var_total:.4f}")
+            st.write(f"Part-to-Part Variation: {var_part:.4f} ({var_part/var_total*100:.2f}%)")
+            st.write(f"Repeatability: {var_repeatability:.4f} ({var_repeatability/var_total*100:.2f}%)")
+            st.write(f"Reproducibility: {var_reproducibility:.4f} ({var_reproducibility/var_total*100:.2f}%)")
+            st.write(f"Gage R&R: {(var_repeatability + var_reproducibility)/var_total*100:.2f}%")
+            
+            # Visualization
+            fig = px.box(gage_data, x='Part', y='Measurement', color='Operator', title="Gage R&R Box Plot")
+            st.plotly_chart(fig)
+            
+        except Exception as e:
+            st.error(f"Error in Gage R&R analysis: {str(e)}")
+
+def process_capability_analysis(data):
     st.subheader("Process Capability Analysis")
     process_column = st.selectbox("Select process measurement column", data.select_dtypes(include=[np.number]).columns)
     lsl = st.number_input("Lower Specification Limit (LSL)")
@@ -126,90 +208,100 @@ def measure_phase(data):
         std = data[process_column].std()
         cp = (usl - lsl) / (6 * std)
         cpk = min((usl - mean) / (3 * std), (mean - lsl) / (3 * std))
-        st.write(f"Cp: {cp:.2f}")
-        st.write(f"Cpk: {cpk:.2f}")
-
-    st.subheader("Measurement System Analysis (Gage R&R)")
-    st.write("Guidance: To perform Gage R&R, ensure your data includes columns for Part, Operator, and Measurement.")
-    part_col = st.selectbox("Select Part Column", data.columns)
-    operator_col = st.selectbox("Select Operator Column", data.columns)
-    measurement_col = st.selectbox("Select Measurement Column", data.select_dtypes(include=[np.number]).columns)
-    
-    if st.button("Perform Gage R&R Analysis"):
-        try:
-            gage_data = data[[part_col, operator_col, measurement_col]]
-            gage_data.columns = ['Part', 'Operator', 'Measurement']
-            
-            # Simplified Gage R&R calculation
-            total_variation = gage_data['Measurement'].var()
-            part_variation = gage_data.groupby('Part')['Measurement'].mean().var()
-            gage_variation = total_variation - part_variation
-            
-            st.write(f"Total Variation: {total_variation:.4f}")
-            st.write(f"Part-to-Part Variation: {part_variation:.4f}")
-            st.write(f"Gage Variation: {gage_variation:.4f}")
-            st.write(f"Gage R&R: {(gage_variation / total_variation * 100):.2f}%")
-        except Exception as e:
-            st.error(f"Error in Gage R&R analysis: {str(e)}")
+        
+        st.write(f"Process Mean: {mean:.4f}")
+        st.write(f"Process Standard Deviation: {std:.4f}")
+        st.write(f"Cp: {cp:.4f}")
+        st.write(f"Cpk: {cpk:.4f}")
+        
+        # Visualization
+        fig = go.Figure()
+        fig.add_trace(go.Histogram(x=data[process_column], name="Process Data"))
+        fig.add_vline(x=lsl, line_dash="dash", line_color="red", annotation_text="LSL")
+        fig.add_vline(x=usl, line_dash="dash", line_color="red", annotation_text="USL")
+        fig.add_vline(x=mean, line_dash="solid", line_color="green", annotation_text="Mean")
+        fig.update_layout(title="Process Capability Analysis", xaxis_title=process_column, yaxis_title="Frequency")
+        st.plotly_chart(fig)
 
 # Analyze phase function
 def analyze_phase(data):
     st.header("Analyze Phase")
-    st.write("Guidance: In this phase, analyze the data to identify root causes of the problem.")
     
-    analysis_type = st.selectbox("Choose analysis type", ["Hypothesis Testing", "Correlation Analysis", "Principal Component Analysis", "Regression Analysis"])
-
+    analysis_type = st.selectbox("Select Analysis Type", ["Hypothesis Testing", "Correlation Analysis", "Regression Analysis", "Design of Experiments (DOE)"])
+    
     if analysis_type == "Hypothesis Testing":
         hypothesis_testing(data)
     elif analysis_type == "Correlation Analysis":
         correlation_analysis(data)
-    elif analysis_type == "Principal Component Analysis":
-        pca_analysis(data)
     elif analysis_type == "Regression Analysis":
         regression_analysis(data)
+    elif analysis_type == "Design of Experiments (DOE)":
+        design_of_experiments(data)
 
 def hypothesis_testing(data):
     st.subheader("Hypothesis Testing")
-    test_type = st.radio("Select test type", ["Two-Sample t-test", "ANOVA"])
+    test_type = st.selectbox("Select test type", ["One-Sample t-test", "Two-Sample t-test", "Paired t-test", "One-Way ANOVA", "Chi-Square Test"])
     
-    if test_type == "Two-Sample t-test":
-        var1 = st.selectbox("Select first variable", data.select_dtypes(include=[np.number]).columns)
-        var2 = st.selectbox("Select second variable", data.select_dtypes(include=[np.number]).columns)
-        
-        if st.button("Perform Two-Sample t-test"):
-            stat, p = ttest_ind(data[var1], data[var2])
-            st.write(f"t-statistic: {stat:.4f}")
-            st.write(f"p-value: {p:.4f}")
+    if test_type == "One-Sample t-test":
+        column = st.selectbox("Select column", data.select_dtypes(include=[np.number]).columns)
+        hypothesized_mean = st.number_input("Hypothesized mean")
+        if st.button("Perform One-Sample t-test"):
+            t_stat, p_value = stats.ttest_1samp(data[column], hypothesized_mean)
+            st.write(f"t-statistic: {t_stat:.4f}")
+            st.write(f"p-value: {p_value:.4f}")
     
-    else:  # ANOVA
-        response_var = st.selectbox("Select response variable", data.select_dtypes(include=[np.number]).columns)
-        group_var = st.selectbox("Select grouping variable", data.select_dtypes(exclude=[np.number]).columns)
-        
-        if st.button("Perform ANOVA"):
-            groups = [group for _, group in data.groupby(group_var)[response_var]]
-            stat, p = f_oneway(*groups)
-            st.write(f"F-statistic: {stat:.4f}")
-            st.write(f"p-value: {p:.4f}")
+    elif test_type == "Two-Sample t-test":
+        column = st.selectbox("Select column", data.select_dtypes(include=[np.number]).columns)
+        group_column = st.selectbox("Select grouping column", data.select_dtypes(exclude=[np.number]).columns)
+        groups = data[group_column].unique()
+        if len(groups) == 2:
+            group1 = data[data[group_column] == groups[0]][column]
+            group2 = data[data[group_column] == groups[1]][column]
+            if st.button("Perform Two-Sample t-test"):
+                t_stat, p_value = stats.ttest_ind(group1, group2)
+                st.write(f"t-statistic: {t_stat:.4f}")
+                st.write(f"p-value: {p_value:.4f}")
+        else:
+            st.write("Please select a grouping column with exactly two groups.")
+    
+    elif test_type == "Paired t-test":
+        column1 = st.selectbox("Select first column", data.select_dtypes(include=[np.number]).columns)
+        column2 = st.selectbox("Select second column", data.select_dtypes(include=[np.number]).columns)
+        if st.button("Perform Paired t-test"):
+            t_stat, p_value = stats.ttest_rel(data[column1], data[column2])
+            st.write(f"t-statistic: {t_stat:.4f}")
+            st.write(f"p-value: {p_value:.4f}")
+    
+    elif test_type == "One-Way ANOVA":
+        value_column = st.selectbox("Select value column", data.select_dtypes(include=[np.number]).columns)
+        group_column = st.selectbox("Select grouping column", data.select_dtypes(exclude=[np.number]).columns)
+        if st.button("Perform One-Way ANOVA"):
+            groups = [group for name, group in data.groupby(group_column)[value_column]]
+            f_stat, p_value = stats.f_oneway(*groups)
+            st.write(f"F-statistic: {f_stat:.4f}")
+            st.write(f"p-value: {p_value:.4f}")
+    
+    elif test_type == "Chi-Square Test":
+        column1 = st.selectbox("Select first categorical column", data.select_dtypes(exclude=[np.number]).columns)
+        column2 = st.selectbox("Select second categorical column", data.select_dtypes(exclude=[np.number]).columns)
+        if st.button("Perform Chi-Square Test"):
+            contingency_table = pd.crosstab(data[column1], data[column2])
+            chi2, p_value, dof, expected = stats.chi2_contingency(contingency_table)
+            st.write(f"Chi-square statistic: {chi2:.4f}")
+            st.write(f"p-value: {p_value:.4f}")
+            st.write("Contingency Table:")
+            st.write(contingency_table)
 
 def correlation_analysis(data):
     st.subheader("Correlation Analysis")
-    if st.button("Generate Correlation Heatmap"):
-        corr_matrix = data.select_dtypes(include=[np.number]).corr()
+    columns = st.multiselect("Select columns for correlation analysis", data.select_dtypes(include=[np.number]).columns)
+    if columns:
+        corr_matrix = data[columns].corr()
         fig = px.imshow(corr_matrix, color_continuous_scale='RdBu_r', aspect="auto")
+        fig.update_layout(title="Correlation Heatmap")
         st.plotly_chart(fig)
-
-def pca_analysis(data):
-    st.subheader("Principal Component Analysis (PCA)")
-    n_components = st.slider("Select number of components", 2, 10)
-    if st.button("Perform PCA"):
-        numeric_data = data.select_dtypes(include=[np.number])
-        scaler = StandardScaler()
-        scaled_data = scaler.fit_transform(numeric_data)
-        pca = PCA(n_components=n_components)
-        pca_result = pca.fit_transform(scaled_data)
-        st.write(f"Explained variance ratio: {pca.explained_variance_ratio_}")
-        fig = px.scatter(x=pca_result[:, 0], y=pca_result[:, 1], labels={'x': 'PC1', 'y': 'PC2'})
-        st.plotly_chart(fig)
+    else:
+        st.write("Please select at least two columns for correlation analysis.")
 
 def regression_analysis(data):
     st.subheader("Regression Analysis")
@@ -222,111 +314,173 @@ def regression_analysis(data):
             try:
                 model = ols(formula, data).fit()
                 st.write(model.summary())
+                
+                # Residual plot
+                residuals = model.resid
+                fitted_values = model.fittedvalues
+                fig = px.scatter(x=fitted_values, y=residuals, labels={'x': 'Fitted values', 'y': 'Residuals'})
+                fig.update_layout(title="Residual Plot")
+                st.plotly_chart(fig)
+                
             except Exception as e:
                 st.error(f"Error in regression analysis: {str(e)}")
         else:
             st.write("Please select at least one predictor variable.")
 
-# Improve phase function
-def improve_phase(data):
-    st.header("Improve Phase")
-    st.write("Guidance: In this phase, develop and implement solutions to address root causes.")
-    
-    st.subheader("Solution Brainstorming")
-    solution = st.text_area("Enter potential solution")
-    impact = st.slider("Estimated Impact", 1, 10)
-    effort = st.slider("Estimated Effort", 1, 10)
-    
-    if st.button("Add Solution"):
-        st.write(f"Solution: {solution}")
-        st.write(f"Impact: {impact}")
-        st.write(f"Effort: {effort}")
-        st.write("Solution added to the list.")
-
-    st.subheader("Implementation Plan")
-    action = st.text_input("Action Item")
-    responsible = st.text_input("Responsible Person")
-    deadline = st.date_input("Deadline")
-    
-    if st.button("Add to Implementation Plan"):
-        st.write(f"Action: {action}")
-        st.write(f"Responsible: {responsible}")
-        st.write(f"Deadline: {deadline}")
-        st.write("Action item added to the implementation plan.")
-
+def design_of_experiments(data):
     st.subheader("Design of Experiments (DOE)")
-    st.write("Guidance: DOE helps in understanding the impact of different factors on the outcome.")
+    st.write("This is a simplified DOE generator. For complex designs, consider using specialized DOE software.")
     
-    # Only allow selection of numeric columns for factors
-    numeric_columns = data.select_dtypes(include=[np.number]).columns
-    factors = st.multiselect("Select Factors for DOE", numeric_columns)
+    factors = st.multiselect("Select factors", data.columns)
+    num_levels = st.number_input("Number of levels for each factor", min_value=2, value=2)
     
-    # Allow selection of any column for response variable
-    response = st.selectbox("Select Response Variable for DOE", data.columns)
-    
-    num_levels = st.slider("Select Number of Levels for Each Factor", 2, 5, 2)
-    
-    if st.button("Plan DOE"):
-        if factors and response:
-            st.write(f"Factors: {factors}")
-            st.write(f"Response: {response}")
-            st.write(f"Number of Levels: {num_levels}")
-            
-            # Generate a basic full factorial design
-            design = pd.DataFrame(list(itertools.product(*[range(num_levels) for _ in factors])), columns=factors)
+    if st.button("Generate DOE"):
+        if factors:
+            levels = list(range(1, num_levels + 1))
+            design = pd.DataFrame(list(itertools.product(*[levels for _ in factors])), columns=factors)
             st.write("Experimental Design:")
             st.write(design)
             
-            st.write("Next steps:")
-            st.write("1. Conduct experiments based on this design")
-            st.write("2. Collect response variable data for each experiment")
-            st.write("3. Analyze results to determine factor effects")
+            csv = design.to_csv(index=False)
+            st.download_button(
+                label="Download DOE as CSV",
+                data=csv,
+                file_name="doe_design.csv",
+                mime="text/csv",
+            )
         else:
-            st.warning("Please select at least one factor and a response variable.")
+            st.write("Please select at least one factor.")
+
+# Improve phase function
+def improve_phase(data):
+    st.header("Improve Phase")
+    
+    st.subheader("Solution Implementation Tracking")
+    solution = st.text_input("Solution Description")
+    impact = st.selectbox("Expected Impact", ["High", "Medium", "Low"])
+    status = st.selectbox("Implementation Status", ["Not Started", "In Progress", "Completed"])
+    
+    if st.button("Add Solution"):
+        st.write("Solution added to tracking:")
+        st.write(f"Description: {solution}")
+        st.write(f"Expected Impact: {impact}")
+        st.write(f"Status: {status}")
+    
+    st.subheader("Impact Analysis")
+    before_column = st.selectbox("Select 'Before' data column", data.select_dtypes(include=[np.number]).columns)
+    after_column = st.selectbox("Select 'After' data column", data.select_dtypes(include=[np.number]).columns)
+    
+    if st.button("Perform Impact Analysis"):
+        before_data = data[before_column]
+        after_data = data[after_column]
+        
+        t_stat, p_value = stats.ttest_rel(before_data, after_data)
+        
+        st.write(f"Paired t-test results:")
+        st.write(f"t-statistic: {t_stat:.4f}")
+        st.write(f"p-value: {p_value:.4f}")
+        
+        fig = go.Figure()
+        fig.add_trace(go.Box(y=before_data, name="Before"))
+        fig.add_trace(go.Box(y=after_data, name="After"))
+        fig.update_layout(title="Before vs After Comparison", yaxis_title="Value")
+        st.plotly_chart(fig)
 
 # Control phase function
 def control_phase(data):
     st.header("Control Phase")
-    st.write("Guidance: In this phase, implement control measures to sustain the improvements.")
     
-    st.subheader("Control Chart")
-    control_var = st.selectbox("Select variable for control chart", data.select_dtypes(include=[np.number]).columns)
+    st.subheader("Control Charts")
+    chart_type = st.selectbox("Select Control Chart Type", ["X-bar R Chart", "Individual Moving Range (I-MR) Chart"])
+    process_column = st.selectbox("Select process measurement column", data.select_dtypes(include=[np.number]).columns)
     
-    if st.button("Generate Control Chart"):
-        mean = data[control_var].mean()
-        std = data[control_var].std()
-        ucl = mean + 3*std
-        lcl = mean - 3*std
-        
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(y=data[control_var], mode='lines+markers', name='Data'))
-        fig.add_trace(go.Scatter(y=[mean]*len(data), mode='lines', name='Mean', line=dict(color='green')))
-        fig.add_trace(go.Scatter(y=[ucl]*len(data), mode='lines', name='UCL', line=dict(color='red', dash='dash')))
-        fig.add_trace(go.Scatter(y=[lcl]*len(data), mode='lines', name='LCL', line=dict(color='red', dash='dash')))
-        fig.update_layout(title='Control Chart', xaxis_title='Sample', yaxis_title='Value')
-        st.plotly_chart(fig)
+    if chart_type == "X-bar R Chart":
+        subgroup_column = st.selectbox("Select subgroup column", data.columns)
+        if st.button("Generate X-bar R Chart"):
+            generate_xbar_r_chart(data, process_column, subgroup_column)
+    
+    elif chart_type == "Individual Moving Range (I-MR) Chart":
+        if st.button("Generate I-MR Chart"):
+            generate_imr_chart(data, process_column)
+    
+    st.subheader("Process Monitoring Plan")
+    metric = st.text_input("Metric to Monitor")
+    frequency = st.selectbox("Monitoring Frequency", ["Hourly", "Daily", "Weekly", "Monthly"])
+    responsible = st.text_input("Responsible Person/Team")
+    action_limit = st.number_input("Action Limit")
+    
+    if st.button("Add to Monitoring Plan"):
+        st.write("Added to Process Monitoring Plan:")
+        st.write(f"Metric: {metric}")
+        st.write(f"Frequency: {frequency}")
+        st.write(f"Responsible: {responsible}")
+        st.write(f"Action Limit: {action_limit}")
 
-    st.subheader("Process Documentation")
-    process_name = st.text_input("Process Name")
-    process_steps = st.text_area("Process Steps")
-    control_measures = st.text_area("Control Measures")
+def generate_xbar_r_chart(data, process_column, subgroup_column):
+    grouped_data = data.groupby(subgroup_column)[process_column]
+    xbar = grouped_data.mean()
+    r = grouped_data.max() - grouped_data.min()
     
-    if st.button("Document Process"):
-        st.write(f"Process: {process_name}")
-        st.write(f"Steps: {process_steps}")
-        st.write(f"Control Measures: {control_measures}")
-        st.write("Process documented successfully.")
+    xbar_mean = xbar.mean()
+    r_mean = r.mean()
+    
+    n = grouped_data.first().count()  # subgroup size
+    A2 = 0.577  # constant for n=5, adjust as needed
+    D3 = 0  # constant for n=5, adjust as needed
+    D4 = 2.114  # constant for n=5, adjust as needed
+    
+    xbar_ucl = xbar_mean + A2 * r_mean
+    xbar_lcl = xbar_mean - A2 * r_mean
+    r_ucl = D4 * r_mean
+    r_lcl = D3 * r_mean
+    
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1,
+                        subplot_titles=("X-bar Chart", "R Chart"))
+    
+    fig.add_trace(go.Scatter(y=xbar, mode='lines+markers', name='X-bar'), row=1, col=1)
+    fig.add_trace(go.Scatter(y=[xbar_mean]*len(xbar), mode='lines', name='X-bar Mean', line=dict(color='green')), row=1, col=1)
+    fig.add_trace(go.Scatter(y=[xbar_ucl]*len(xbar), mode='lines', name='X-bar UCL', line=dict(color='red', dash='dash')), row=1, col=1)
+    fig.add_trace(go.Scatter(y=[xbar_lcl]*len(xbar), mode='lines', name='X-bar LCL', line=dict(color='red', dash='dash')), row=1, col=1)
+    
+    fig.add_trace(go.Scatter(y=r, mode='lines+markers', name='R'), row=2, col=1)
+    fig.add_trace(go.Scatter(y=[r_mean]*len(r), mode='lines', name='R Mean', line=dict(color='green')), row=2, col=1)
+    fig.add_trace(go.Scatter(y=[r_ucl]*len(r), mode='lines', name='R UCL', line=dict(color='red', dash='dash')), row=2, col=1)
+    fig.add_trace(go.Scatter(y=[r_lcl]*len(r), mode='lines', name='R LCL', line=dict(color='red', dash='dash')), row=2, col=1)
+    
+    fig.update_layout(height=800, title_text="X-bar R Chart")
+    st.plotly_chart(fig)
 
-    st.subheader("Standardization and Training")
-    standard_procedure = st.text_area("Standard Operating Procedure")
-    training_plan = st.text_area("Training Plan")
+def generate_imr_chart(data, process_column):
+    individual = data[process_column]
+    moving_range = individual.diff().abs()
     
-    if st.button("Record Standardization and Training Plan"):
-        st.write("Standard Operating Procedure:")
-        st.write(standard_procedure)
-        st.write("Training Plan:")
-        st.write(training_plan)
-        st.write("Standardization and training plan recorded.")
+    ind_mean = individual.mean()
+    mr_mean = moving_range.mean()
+    
+    E2 = 2.66  # constant for n=2
+    D3 = 0  # constant for n=2
+    D4 = 3.267  # constant for n=2
+    
+    ind_ucl = ind_mean + E2 * mr_mean
+    ind_lcl = ind_mean - E2 * mr_mean
+    mr_ucl = D4 * mr_mean
+    mr_lcl = D3 * mr_mean
+    
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1,
+                        subplot_titles=("Individual Chart", "Moving Range Chart"))
+    
+    fig.add_trace(go.Scatter(y=individual, mode='lines+markers', name='Individual'), row=1, col=1)
+    fig.add_trace(go.Scatter(y=[ind_mean]*len(individual), mode='lines', name='Mean', line=dict(color='green')), row=1, col=1)
+    fig.add_trace(go.Scatter(y=[ind_ucl]*len(individual), mode='lines', name='UCL', line=dict(color='red', dash='dash')), row=1, col=1)
+    fig.add_trace(go.Scatter(y=[ind_lcl]*len(individual), mode='lines', name='LCL', line=dict(color='red', dash='dash')), row=1, col=1)
+    
+    fig.add_trace(go.Scatter(y=moving_range, mode='lines+markers', name='Moving Range'), row=2, col=1)
+    fig.add_trace(go.Scatter(y=[mr_mean]*len(moving_range), mode='lines', name='MR Mean', line=dict(color='green')), row=2, col=1)
+    fig.add_trace(go.Scatter(y=[mr_ucl]*len(moving_range), mode='lines', name='MR UCL', line=dict(color='red', dash='dash')), row=2, col=1)
+    fig.add_trace(go.Scatter(y=[mr_lcl]*len(moving_range), mode='lines', name='MR LCL', line=dict(color='red', dash='dash')), row=2, col=1)
+    
+    fig.update_layout(height=800, title_text="Individual Moving Range (I-MR) Chart")
+    st.plotly_chart(fig)
 
 # RACI Matrix function
 def raci_matrix():
@@ -339,6 +493,7 @@ def raci_matrix():
     if st.button("Generate RACI Matrix"):
         roles_list = [role.strip() for role in roles.split(',')]
         tasks_list = [task.strip() for task in tasks.split(',')]
+        
         raci_df = pd.DataFrame(index=tasks_list, columns=roles_list)
         
         for task in tasks_list:
