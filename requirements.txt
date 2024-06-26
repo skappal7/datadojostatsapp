@@ -6,4 +6,4 @@ statsmodels
 scipy
 plotly
 openpyxl
-sklearn
+scikit-learn
