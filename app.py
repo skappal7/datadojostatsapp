@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import plotly.figure_factory as ff
+from plotly.subplots import make_subplots
 from statsmodels.stats.anova import anova_lm
 from statsmodels.formula.api import ols
 from scipy import stats
@@ -74,13 +74,13 @@ def define_phase(data):
     st.subheader("Project Charter")
     col1, col2 = st.columns(2)
     with col1:
-        project_name = st.text_input("Project Name")
-        problem_statement = st.text_area("Problem Statement")
+        project_name = st.text_input("Project Name", key="define_project_name")
+        problem_statement = st.text_area("Problem Statement", key="define_problem_statement")
     with col2:
-        project_scope = st.text_area("Project Scope")
-        project_goals = st.text_area("Project Goals")
+        project_scope = st.text_area("Project Scope", key="define_project_scope")
+        project_goals = st.text_area("Project Goals", key="define_project_goals")
     
-    if st.button("Generate Project Charter"):
+    if st.button("Generate Project Charter", key="define_generate_charter"):
         st.write("### Project Charter")
         st.write(f"**Project Name:** {project_name}")
         st.write(f"**Problem Statement:** {problem_statement}")
@@ -90,15 +90,15 @@ def define_phase(data):
     st.subheader("SIPOC Diagram")
     col1, col2, col3 = st.columns(3)
     with col1:
-        suppliers = st.text_area("Suppliers")
-        inputs = st.text_area("Inputs")
+        suppliers = st.text_area("Suppliers", key="define_suppliers")
+        inputs = st.text_area("Inputs", key="define_inputs")
     with col2:
-        process = st.text_area("Process")
+        process = st.text_area("Process", key="define_process")
     with col3:
-        outputs = st.text_area("Outputs")
-        customers = st.text_area("Customers")
+        outputs = st.text_area("Outputs", key="define_outputs")
+        customers = st.text_area("Customers", key="define_customers")
     
-    if st.button("Generate SIPOC Diagram"):
+    if st.button("Generate SIPOC Diagram", key="define_generate_sipoc"):
         sipoc_data = {
             "Category": ["Suppliers", "Inputs", "Process", "Outputs", "Customers"],
             "Details": [suppliers, inputs, process, outputs, customers]
@@ -109,7 +109,7 @@ def define_phase(data):
 def measure_phase(data):
     st.header("Measure Phase")
     
-    analysis_type = st.selectbox("Select Analysis Type", ["Descriptive Statistics", "Graphical Analysis", "Measurement System Analysis", "Process Capability Analysis"])
+    analysis_type = st.selectbox("Select Analysis Type", ["Descriptive Statistics", "Graphical Analysis", "Measurement System Analysis", "Process Capability Analysis"], key="measure_analysis_type")
     
     if analysis_type == "Descriptive Statistics":
         descriptive_statistics(data)
@@ -122,7 +122,7 @@ def measure_phase(data):
 
 def descriptive_statistics(data):
     st.subheader("Descriptive Statistics")
-    selected_columns = st.multiselect("Select columns for analysis", data.columns)
+    selected_columns = st.multiselect("Select columns for analysis", data.columns, key="desc_stat_columns")
     if selected_columns:
         st.write(data[selected_columns].describe())
     else:
@@ -130,16 +130,16 @@ def descriptive_statistics(data):
 
 def graphical_analysis(data):
     st.subheader("Graphical Analysis")
-    chart_type = st.selectbox("Select chart type", ["Histogram", "Box Plot", "Scatter Plot"])
+    chart_type = st.selectbox("Select chart type", ["Histogram", "Box Plot", "Scatter Plot"], key="graph_chart_type")
     
     if chart_type == "Histogram":
-        column = st.selectbox("Select column for histogram", data.select_dtypes(include=[np.number]).columns)
+        column = st.selectbox("Select column for histogram", data.select_dtypes(include=[np.number]).columns, key="hist_column")
         fig = px.histogram(data, x=column)
         st.plotly_chart(fig)
     
     elif chart_type == "Box Plot":
-        y_column = st.selectbox("Select column for box plot", data.select_dtypes(include=[np.number]).columns)
-        x_column = st.selectbox("Select grouping column (optional)", ["None"] + list(data.columns))
+        y_column = st.selectbox("Select column for box plot", data.select_dtypes(include=[np.number]).columns, key="box_y_column")
+        x_column = st.selectbox("Select grouping column (optional)", ["None"] + list(data.columns), key="box_x_column")
         if x_column != "None":
             fig = px.box(data, x=x_column, y=y_column)
         else:
@@ -147,18 +147,18 @@ def graphical_analysis(data):
         st.plotly_chart(fig)
     
     elif chart_type == "Scatter Plot":
-        x_column = st.selectbox("Select X-axis column", data.select_dtypes(include=[np.number]).columns)
-        y_column = st.selectbox("Select Y-axis column", data.select_dtypes(include=[np.number]).columns)
+        x_column = st.selectbox("Select X-axis column", data.select_dtypes(include=[np.number]).columns, key="scatter_x_column")
+        y_column = st.selectbox("Select Y-axis column", data.select_dtypes(include=[np.number]).columns, key="scatter_y_column")
         fig = px.scatter(data, x=x_column, y=y_column)
         st.plotly_chart(fig)
 
 def measurement_system_analysis(data):
     st.subheader("Measurement System Analysis (Gage R&R)")
-    part_col = st.selectbox("Select Part Column", data.columns)
-    operator_col = st.selectbox("Select Operator Column", data.columns)
-    measurement_col = st.selectbox("Select Measurement Column", data.select_dtypes(include=[np.number]).columns)
+    part_col = st.selectbox("Select Part Column", data.columns, key="gage_part_col")
+    operator_col = st.selectbox("Select Operator Column", data.columns, key="gage_operator_col")
+    measurement_col = st.selectbox("Select Measurement Column", data.select_dtypes(include=[np.number]).columns, key="gage_measurement_col")
     
-    if st.button("Perform Gage R&R Analysis"):
+    if st.button("Perform Gage R&R Analysis", key="perform_gage_rr"):
         try:
             gage_data = data[[part_col, operator_col, measurement_col]]
             gage_data.columns = ['Part', 'Operator', 'Measurement']
@@ -199,11 +199,11 @@ def measurement_system_analysis(data):
 
 def process_capability_analysis(data):
     st.subheader("Process Capability Analysis")
-    process_column = st.selectbox("Select process measurement column", data.select_dtypes(include=[np.number]).columns)
-    lsl = st.number_input("Lower Specification Limit (LSL)")
-    usl = st.number_input("Upper Specification Limit (USL)")
+    process_column = st.selectbox("Select process measurement column", data.select_dtypes(include=[np.number]).columns, key="capability_process_col")
+    lsl = st.number_input("Lower Specification Limit (LSL)", key="capability_lsl")
+    usl = st.number_input("Upper Specification Limit (USL)", key="capability_usl")
     
-    if st.button("Calculate Process Capability"):
+    if st.button("Calculate Process Capability", key="calc_process_capability"):
         mean = data[process_column].mean()
         std = data[process_column].std()
         cp = (usl - lsl) / (6 * std)
@@ -227,7 +227,7 @@ def process_capability_analysis(data):
 def analyze_phase(data):
     st.header("Analyze Phase")
     
-    analysis_type = st.selectbox("Select Analysis Type", ["Hypothesis Testing", "Correlation Analysis", "Regression Analysis", "Design of Experiments (DOE)"])
+    analysis_type = st.selectbox("Select Analysis Type", ["Hypothesis Testing", "Correlation Analysis", "Regression Analysis", "Design of Experiments (DOE)"], key="analyze_analysis_type")
     
     if analysis_type == "Hypothesis Testing":
         hypothesis_testing(data)
@@ -240,24 +240,24 @@ def analyze_phase(data):
 
 def hypothesis_testing(data):
     st.subheader("Hypothesis Testing")
-    test_type = st.selectbox("Select test type", ["One-Sample t-test", "Two-Sample t-test", "Paired t-test", "One-Way ANOVA", "Chi-Square Test"])
+    test_type = st.selectbox("Select test type", ["One-Sample t-test", "Two-Sample t-test", "Paired t-test", "One-Way ANOVA", "Chi-Square Test"], key="hyp_test_type")
     
     if test_type == "One-Sample t-test":
-        column = st.selectbox("Select column", data.select_dtypes(include=[np.number]).columns)
-        hypothesized_mean = st.number_input("Hypothesized mean")
-        if st.button("Perform One-Sample t-test"):
+        column = st.selectbox("Select column", data.select_dtypes(include=[np.number]).columns, key="one_sample_column")
+        hypothesized_mean = st.number_input("Hypothesized mean", key="one_sample_mean")
+        if st.button("Perform One-Sample t-test", key="perform_one_sample"):
             t_stat, p_value = stats.ttest_1samp(data[column], hypothesized_mean)
             st.write(f"t-statistic: {t_stat:.4f}")
             st.write(f"p-value: {p_value:.4f}")
     
     elif test_type == "Two-Sample t-test":
-        column = st.selectbox("Select column", data.select_dtypes(include=[np.number]).columns)
-        group_column = st.selectbox("Select grouping column", data.select_dtypes(exclude=[np.number]).columns)
+        column = st.selectbox("Select column", data.select_dtypes(include=[np.number]).columns, key="two_sample_column")
+        group_column = st.selectbox("Select grouping column", data.select_dtypes(exclude=[np.number]).columns, key="two_sample_group")
         groups = data[group_column].unique()
         if len(groups) == 2:
             group1 = data[data[group_column] == groups[0]][column]
             group2 = data[data[group_column] == groups[1]][column]
-            if st.button("Perform Two-Sample t-test"):
+            if st.button("Perform Two-Sample t-test", key="perform_two_sample"):
                 t_stat, p_value = stats.ttest_ind(group1, group2)
                 st.write(f"t-statistic: {t_stat:.4f}")
                 st.write(f"p-value: {p_value:.4f}")
@@ -265,26 +265,25 @@ def hypothesis_testing(data):
             st.write("Please select a grouping column with exactly two groups.")
     
     elif test_type == "Paired t-test":
-        column1 = st.selectbox("Select first column", data.select_dtypes(include=[np.number]).columns)
-        column2 = st.selectbox("Select second column", data.select_dtypes(include=[np.number]).columns)
-        if st.button("Perform Paired t-test"):
+        column1 = st.selectbox("Select first column", data.select_dtypes(include=[np.number]).columns, key="paired_column1")
+        column2 = st.selectbox("Select second column", data.select_dtypes(include=[np.number]).columns, key="paired_column2")
+        if st.button("Perform Paired t-test", key="perform_paired"):
             t_stat, p_value = stats.ttest_rel(data[column1], data[column2])
             st.write(f"t-statistic: {t_stat:.4f}")
             st.write(f"p-value: {p_value:.4f}")
     
     elif test_type == "One-Way ANOVA":
-        value_column = st.selectbox("Select value column", data.select_dtypes(include=[np.number]).columns)
-        group_column = st.selectbox("Select grouping column", data.select_dtypes(exclude=[np.number]).columns)
-        if st.button("Perform One-Way ANOVA"):
+        value_column = st.selectbox("Select value column", data.select_dtypes(include=[np.number]).columns, key="anova_value")
+        group_column = st.selectbox("Select grouping column", data.select_dtypes(exclude=[np.number]).columns, key="anova_group")
+        if st.button("Perform One-Way ANOVA", key="perform_anova"):
             groups = [group for name, group in data.groupby(group_column)[value_column]]
             f_stat, p_value = stats.f_oneway(*groups)
             st.write(f"F-statistic: {f_stat:.4f}")
             st.write(f"p-value: {p_value:.4f}")
-    
-    elif test_type == "Chi-Square Test":
-        column1 = st.selectbox("Select first categorical column", data.select_dtypes(exclude=[np.number]).columns)
-        column2 = st.selectbox("Select second categorical column", data.select_dtypes(exclude=[np.number]).columns)
-        if st.button("Perform Chi-Square Test"):
+elif test_type == "Chi-Square Test":
+        column1 = st.selectbox("Select first categorical column", data.select_dtypes(exclude=[np.number]).columns, key="chi_column1")
+        column2 = st.selectbox("Select second categorical column", data.select_dtypes(exclude=[np.number]).columns, key="chi_column2")
+        if st.button("Perform Chi-Square Test", key="perform_chi_square"):
             contingency_table = pd.crosstab(data[column1], data[column2])
             chi2, p_value, dof, expected = stats.chi2_contingency(contingency_table)
             st.write(f"Chi-square statistic: {chi2:.4f}")
@@ -294,7 +293,7 @@ def hypothesis_testing(data):
 
 def correlation_analysis(data):
     st.subheader("Correlation Analysis")
-    columns = st.multiselect("Select columns for correlation analysis", data.select_dtypes(include=[np.number]).columns)
+    columns = st.multiselect("Select columns for correlation analysis", data.select_dtypes(include=[np.number]).columns, key="corr_columns")
     if columns:
         corr_matrix = data[columns].corr()
         fig = px.imshow(corr_matrix, color_continuous_scale='RdBu_r', aspect="auto")
@@ -305,10 +304,10 @@ def correlation_analysis(data):
 
 def regression_analysis(data):
     st.subheader("Regression Analysis")
-    response_var = st.selectbox("Select Response Variable", data.select_dtypes(include=[np.number]).columns)
-    predictor_vars = st.multiselect("Select Predictor Variables", data.select_dtypes(include=[np.number]).columns)
+    response_var = st.selectbox("Select Response Variable", data.select_dtypes(include=[np.number]).columns, key="reg_response")
+    predictor_vars = st.multiselect("Select Predictor Variables", data.select_dtypes(include=[np.number]).columns, key="reg_predictors")
     
-    if st.button("Run Regression Analysis"):
+    if st.button("Run Regression Analysis", key="run_regression"):
         if predictor_vars:
             formula = f"{response_var} ~ {' + '.join(predictor_vars)}"
             try:
@@ -331,10 +330,10 @@ def design_of_experiments(data):
     st.subheader("Design of Experiments (DOE)")
     st.write("This is a simplified DOE generator. For complex designs, consider using specialized DOE software.")
     
-    factors = st.multiselect("Select factors", data.columns)
-    num_levels = st.number_input("Number of levels for each factor", min_value=2, value=2)
+    factors = st.multiselect("Select factors", data.columns, key="doe_factors")
+    num_levels = st.number_input("Number of levels for each factor", min_value=2, value=2, key="doe_levels")
     
-    if st.button("Generate DOE"):
+    if st.button("Generate DOE", key="generate_doe"):
         if factors:
             levels = list(range(1, num_levels + 1))
             design = pd.DataFrame(list(itertools.product(*[levels for _ in factors])), columns=factors)
@@ -356,21 +355,21 @@ def improve_phase(data):
     st.header("Improve Phase")
     
     st.subheader("Solution Implementation Tracking")
-    solution = st.text_input("Solution Description")
-    impact = st.selectbox("Expected Impact", ["High", "Medium", "Low"])
-    status = st.selectbox("Implementation Status", ["Not Started", "In Progress", "Completed"])
+    solution = st.text_input("Solution Description", key="improve_solution")
+    impact = st.selectbox("Expected Impact", ["High", "Medium", "Low"], key="improve_impact")
+    status = st.selectbox("Implementation Status", ["Not Started", "In Progress", "Completed"], key="improve_status")
     
-    if st.button("Add Solution"):
+    if st.button("Add Solution", key="add_solution"):
         st.write("Solution added to tracking:")
         st.write(f"Description: {solution}")
         st.write(f"Expected Impact: {impact}")
         st.write(f"Status: {status}")
     
     st.subheader("Impact Analysis")
-    before_column = st.selectbox("Select 'Before' data column", data.select_dtypes(include=[np.number]).columns)
-    after_column = st.selectbox("Select 'After' data column", data.select_dtypes(include=[np.number]).columns)
+    before_column = st.selectbox("Select 'Before' data column", data.select_dtypes(include=[np.number]).columns, key="impact_before")
+    after_column = st.selectbox("Select 'After' data column", data.select_dtypes(include=[np.number]).columns, key="impact_after")
     
-    if st.button("Perform Impact Analysis"):
+    if st.button("Perform Impact Analysis", key="perform_impact"):
         before_data = data[before_column]
         after_data = data[after_column]
         
@@ -391,25 +390,25 @@ def control_phase(data):
     st.header("Control Phase")
     
     st.subheader("Control Charts")
-    chart_type = st.selectbox("Select Control Chart Type", ["X-bar R Chart", "Individual Moving Range (I-MR) Chart"])
-    process_column = st.selectbox("Select process measurement column", data.select_dtypes(include=[np.number]).columns)
+    chart_type = st.selectbox("Select Control Chart Type", ["X-bar R Chart", "Individual Moving Range (I-MR) Chart"], key="control_chart_type")
+    process_column = st.selectbox("Select process measurement column", data.select_dtypes(include=[np.number]).columns, key="control_process_column")
     
     if chart_type == "X-bar R Chart":
-        subgroup_column = st.selectbox("Select subgroup column", data.columns)
-        if st.button("Generate X-bar R Chart"):
+        subgroup_column = st.selectbox("Select subgroup column", data.columns, key="xbar_subgroup")
+        if st.button("Generate X-bar R Chart", key="generate_xbar_r"):
             generate_xbar_r_chart(data, process_column, subgroup_column)
     
     elif chart_type == "Individual Moving Range (I-MR) Chart":
-        if st.button("Generate I-MR Chart"):
+        if st.button("Generate I-MR Chart", key="generate_imr"):
             generate_imr_chart(data, process_column)
     
     st.subheader("Process Monitoring Plan")
-    metric = st.text_input("Metric to Monitor")
-    frequency = st.selectbox("Monitoring Frequency", ["Hourly", "Daily", "Weekly", "Monthly"])
-    responsible = st.text_input("Responsible Person/Team")
-    action_limit = st.number_input("Action Limit")
+    metric = st.text_input("Metric to Monitor", key="monitor_metric")
+    frequency = st.selectbox("Monitoring Frequency", ["Hourly", "Daily", "Weekly", "Monthly"], key="monitor_frequency")
+    responsible = st.text_input("Responsible Person/Team", key="monitor_responsible")
+    action_limit = st.number_input("Action Limit", key="monitor_limit")
     
-    if st.button("Add to Monitoring Plan"):
+    if st.button("Add to Monitoring Plan", key="add_to_monitoring"):
         st.write("Added to Process Monitoring Plan:")
         st.write(f"Metric: {metric}")
         st.write(f"Frequency: {frequency}")
@@ -487,10 +486,10 @@ def raci_matrix():
     st.header("RACI Matrix")
     st.write("Guidance: RACI Matrix helps in clarifying roles and responsibilities for each task.")
     
-    roles = st.text_area("Enter Roles (comma separated)")
-    tasks = st.text_area("Enter Tasks (comma separated)")
+    roles = st.text_area("Enter Roles (comma separated)", key="raci_roles")
+    tasks = st.text_area("Enter Tasks (comma separated)", key="raci_tasks")
     
-    if st.button("Generate RACI Matrix"):
+    if st.button("Generate RACI Matrix", key="generate_raci"):
         roles_list = [role.strip() for role in roles.split(',')]
         tasks_list = [task.strip() for task in tasks.split(',')]
         
@@ -499,7 +498,7 @@ def raci_matrix():
         for i, task in enumerate(tasks_list):
             st.write(f"Task: {task}")
             for j, role in enumerate(roles_list):
-                key = f"raci_{i}_{j}"  # Create a unique key for each selectbox
+                key = f"raci_{i}_{j}"
                 responsibility = st.selectbox(f"{role}", ["", "R", "A", "C", "I"], key=key)
                 raci_df.at[task, role] = responsibility
         
