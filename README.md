@@ -43,7 +43,7 @@ Ensure you have Python installed on your machine. You can download it from [Pyth
 1. Clone the repository:
     ```sh
     git clone https://github.com/skappal7/datadojostatsapp.git
-    cd six-sigma-dmaic-dmadv-app
+    cd datadojostatsapp
     ```
 
 2. Install the required Python packages:
