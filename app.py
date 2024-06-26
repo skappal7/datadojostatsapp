@@ -4,17 +4,14 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from statsmodels.formula.api import ols
-from scipy.stats import ttest_ind
-from io import BytesIO
+from scipy.stats import ttest_ind, f_oneway
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
 # Set page config
 st.set_page_config(page_title="Data Dojo Stats Assistant", layout="wide")
 
-# Define navigation menu
-st.sidebar.title("Data Dojo Stats Assistant for Six Sigma Projects")
-option = st.sidebar.selectbox("Choose a stage", ["Define", "Measure", "Analyze", "Improve", "Control", "RACI Matrix"])
-
-# Utility function to load data
+# Caching data load function
 @st.cache_data
 def load_data(file):
     try:
@@ -30,276 +27,292 @@ def load_data(file):
         st.error(f"Error loading file: {str(e)}")
         return None
 
-# Define stage
-if option == "Define":
-    st.title("Define Stage")
-    
-    with st.form("project_info"):
-        project_name = st.text_input("Project Name")
-        project_scope = st.text_area("Project Scope")
-        project_objectives = st.text_area("Project Objectives")
-        submit_button = st.form_submit_button("Save Project Info")
-    
-    if submit_button:
-        st.write(f"### Project Info\n**Name:** {project_name}\n**Scope:** {project_scope}\n**Objectives:** {project_objectives}")
+# Main app
+def main():
+    st.title("Data Dojo Stats Assistant for Six Sigma Projects")
 
-    # SIPOC Diagram
-    st.header("SIPOC Diagram")
-    with st.form("sipoc"):
-        suppliers = st.text_area("Suppliers")
-        inputs = st.text_area("Inputs")
-        process = st.text_area("Process")
-        outputs = st.text_area("Outputs")
-        customers = st.text_area("Customers")
-        generate_sipoc = st.form_submit_button("Generate SIPOC")
-    
-    if generate_sipoc:
-        st.write("### SIPOC Diagram")
-        sipoc_data = [
-            ("Suppliers", suppliers),
-            ("Inputs", inputs),
-            ("Process", process),
-            ("Outputs", outputs),
-            ("Customers", customers)
-        ]
-        sipoc_df = pd.DataFrame(sipoc_data, columns=["Category", "Details"])
-        st.table(sipoc_df)
-
-# Measure stage
-elif option == "Measure":
-    st.title("Measure Stage")
-    uploaded_file = st.file_uploader("Upload Data", type=["csv", "xlsx"])
+    # File uploader
+    uploaded_file = st.file_uploader("Upload your data (CSV or Excel)", type=["csv", "xlsx"])
     
     if uploaded_file is not None:
         data = load_data(uploaded_file)
         if data is not None:
-            st.write("### Data Preview")
-            st.write(data.head())
-            
-            if st.button("Show Descriptive Statistics"):
-                st.write("### Descriptive Statistics")
-                st.write(data.describe())
-            
-            st.subheader("Measurement System Analysis (Gage R&R)")
-            st.write("To perform Gage R&R, please ensure your data includes columns for Part, Operator, and Measurement.")
-            part_col = st.selectbox("Select Part Column", data.columns)
-            operator_col = st.selectbox("Select Operator Column", data.columns)
-            measurement_col = st.selectbox("Select Measurement Column", data.columns)
-            
-            if st.button("Perform Gage R&R Analysis"):
-                try:
-                    gage_data = data[[part_col, operator_col, measurement_col]]
-                    gage_data.columns = ['Part', 'Operator', 'Measurement']
-                    
-                    # Simplified Gage R&R calculation
-                    total_variation = gage_data['Measurement'].var()
-                    part_variation = gage_data.groupby('Part')['Measurement'].mean().var()
-                    gage_variation = total_variation - part_variation
-                    
-                    st.write(f"Total Variation: {total_variation:.4f}")
-                    st.write(f"Part-to-Part Variation: {part_variation:.4f}")
-                    st.write(f"Gage Variation: {gage_variation:.4f}")
-                    st.write(f"Gage R&R: {(gage_variation / total_variation * 100):.2f}%")
-                except Exception as e:
-                    st.error(f"Error in Gage R&R analysis: {str(e)}")
-
-            st.subheader("Capability Analysis")
-            col = st.selectbox("Select Column for Capability Analysis", data.select_dtypes(include=[np.number]).columns)
-            lsl = st.number_input("Lower Specification Limit", value=float(data[col].min()))
-            usl = st.number_input("Upper Specification Limit", value=float(data[col].max()))
-            
-            if st.button("Run Capability Analysis"):
-                mean = data[col].mean()
-                std_dev = data[col].std()
-                cp = (usl - lsl) / (6 * std_dev)
-                cpk = min((usl - mean) / (3 * std_dev), (mean - lsl) / (3 * std_dev))
-                
-                st.write(f"Process Capability (Cp): {cp:.4f}")
-                st.write(f"Process Capability Index (Cpk): {cpk:.4f}")
-                st.write(f"Mean: {mean:.4f}, Standard Deviation: {std_dev:.4f}")
-                
-                # Histogram with specification limits
-                fig = px.histogram(data, x=col, nbins=30)
-                fig.add_vline(x=lsl, line_dash="dash", line_color="red", annotation_text="LSL")
-                fig.add_vline(x=usl, line_dash="dash", line_color="red", annotation_text="USL")
-                fig.add_vline(x=mean, line_dash="solid", line_color="green", annotation_text="Mean")
-                st.plotly_chart(fig)
-
-# Analyze stage
-elif option == "Analyze":
-    st.title("Analyze Stage")
-    uploaded_file = st.file_uploader("Upload Data", type=["csv", "xlsx"])
-    
-    if uploaded_file is not None:
-        data = load_data(uploaded_file)
-        if data is not None:
-            st.write("### Data Preview")
+            st.success("Data loaded successfully!")
+            st.write("Data Preview:")
             st.write(data.head())
 
-            st.subheader("Pareto Chart")
-            pareto_col = st.selectbox("Select Column for Pareto Analysis", data.columns)
-            if st.button("Generate Pareto Chart"):
-                counts = data[pareto_col].value_counts()
-                pareto_df = pd.DataFrame({'Category': counts.index, 'Count': counts.values})
-                pareto_df['Cumulative Percentage'] = pareto_df['Count'].cumsum() / pareto_df['Count'].sum() * 100
-                fig = px.bar(pareto_df, x='Category', y='Count', title='Pareto Chart')
-                fig.add_scatter(x=pareto_df['Category'], y=pareto_df['Cumulative Percentage'], mode='lines', name='Cumulative Percentage', yaxis='y2')
-                fig.update_layout(yaxis2=dict(overlaying='y', side='right', title='Cumulative Percentage'))
-                st.plotly_chart(fig)
+            # Tabs for each phase
+            tabs = st.tabs(["Define", "Measure", "Analyze", "Improve", "Control", "RACI Matrix"])
 
-            st.subheader("Cause-and-Effect Diagram")
-            st.write("Enter causes for each category:")
-            causes = {}
-            for category in ["Man", "Machine", "Method", "Material", "Measurement", "Environment"]:
-                causes[category] = st.text_area(f"Causes for {category}", key=category)
+            with tabs[0]:
+                define_phase(data)
+
+            with tabs[1]:
+                measure_phase(data)
+
+            with tabs[2]:
+                analyze_phase(data)
+
+            with tabs[3]:
+                improve_phase(data)
+
+            with tabs[4]:
+                control_phase(data)
+
+            with tabs[5]:
+                raci_matrix()
+    else:
+        st.info("Please upload a data file to begin.")
+
+# Define phase function
+def define_phase(data):
+    st.header("Define Phase")
+    st.write("Guidance: In this phase, define the problem, project scope, and objectives.")
+    
+    st.subheader("Project Charter")
+    project_name = st.text_input("Project Name")
+    problem_statement = st.text_area("Problem Statement")
+    project_scope = st.text_area("Project Scope")
+    project_goals = st.text_area("Project Goals")
+    
+    if st.button("Generate Project Charter"):
+        st.write("### Project Charter")
+        st.write(f"**Project Name:** {project_name}")
+        st.write(f"**Problem Statement:** {problem_statement}")
+        st.write(f"**Project Scope:** {project_scope}")
+        st.write(f"**Project Goals:** {project_goals}")
+
+    st.subheader("SIPOC Diagram")
+    suppliers = st.text_area("Suppliers")
+    inputs = st.text_area("Inputs")
+    process = st.text_area("Process")
+    outputs = st.text_area("Outputs")
+    customers = st.text_area("Customers")
+    
+    if st.button("Generate SIPOC Diagram"):
+        sipoc_data = {
+            "Category": ["Suppliers", "Inputs", "Process", "Outputs", "Customers"],
+            "Details": [suppliers, inputs, process, outputs, customers]
+        }
+        st.table(pd.DataFrame(sipoc_data))
+
+# Measure phase function
+@st.cache_data
+def measure_phase(data):
+    st.header("Measure Phase")
+    st.write("Guidance: In this phase, measure the current process and collect relevant data.")
+    
+    st.subheader("Descriptive Statistics")
+    if st.button("Calculate Descriptive Statistics"):
+        st.write(data.describe())
+    
+    st.subheader("Data Visualization")
+    column = st.selectbox("Select a column for visualization", data.select_dtypes(include=[np.number]).columns)
+    chart_type = st.radio("Select chart type", ["Histogram", "Box Plot"])
+    
+    if chart_type == "Histogram":
+        fig = px.histogram(data, x=column)
+    else:
+        fig = px.box(data, y=column)
+    
+    st.plotly_chart(fig)
+
+    st.subheader("Process Capability Analysis")
+    process_column = st.selectbox("Select process measurement column", data.select_dtypes(include=[np.number]).columns)
+    lsl = st.number_input("Lower Specification Limit (LSL)")
+    usl = st.number_input("Upper Specification Limit (USL)")
+    
+    if st.button("Calculate Process Capability"):
+        mean = data[process_column].mean()
+        std = data[process_column].std()
+        cp = (usl - lsl) / (6 * std)
+        cpk = min((usl - mean) / (3 * std), (mean - lsl) / (3 * std))
+        st.write(f"Cp: {cp:.2f}")
+        st.write(f"Cpk: {cpk:.2f}")
+
+    st.subheader("Measurement System Analysis (Gage R&R)")
+    st.write("Guidance: To perform Gage R&R, ensure your data includes columns for Part, Operator, and Measurement.")
+    part_col = st.selectbox("Select Part Column", data.columns)
+    operator_col = st.selectbox("Select Operator Column", data.columns)
+    measurement_col = st.selectbox("Select Measurement Column", data.select_dtypes(include=[np.number]).columns)
+    
+    if st.button("Perform Gage R&R Analysis"):
+        try:
+            gage_data = data[[part_col, operator_col, measurement_col]]
+            gage_data.columns = ['Part', 'Operator', 'Measurement']
             
-            if st.button("Generate Cause-and-Effect Diagram"):
-                fig = go.Figure()
-                for i, (category, cause_list) in enumerate(causes.items()):
-                    angle = i * 60
-                    r = 1
-                    x = r * np.cos(np.radians(angle))
-                    y = r * np.sin(np.radians(angle))
-                    fig.add_trace(go.Scatter(x=[0, x], y=[0, y], mode='lines+text', name=category,
-                                             text=[category], textposition='top center'))
-                    for j, cause in enumerate(cause_list.split('\n')):
-                        if cause:
-                            r_cause = 0.7 + j * 0.1
-                            x_cause = r_cause * np.cos(np.radians(angle))
-                            y_cause = r_cause * np.sin(np.radians(angle))
-                            fig.add_trace(go.Scatter(x=[x, x_cause], y=[y, y_cause], mode='lines+text',
-                                                     text=[cause], textposition='middle right', showlegend=False))
-                fig.update_layout(title="Cause-and-Effect Diagram", showlegend=False)
-                st.plotly_chart(fig)
-
-            st.subheader("Hypothesis Test")
-            group_col = st.selectbox("Select Group Column", data.columns)
-            value_col = st.selectbox("Select Value Column", data.select_dtypes(include=[np.number]).columns)
+            # Simplified Gage R&R calculation
+            total_variation = gage_data['Measurement'].var()
+            part_variation = gage_data.groupby('Part')['Measurement'].mean().var()
+            gage_variation = total_variation - part_variation
             
-            if st.button("Perform Hypothesis Test"):
-                groups = data[group_col].unique()
-                if len(groups) == 2:
-                    group1 = data[data[group_col] == groups[0]][value_col]
-                    group2 = data[data[group_col] == groups[1]][value_col]
-                    stat, p = ttest_ind(group1, group2)
-                    st.write(f"t-test statistic: {stat:.4f}")
-                    st.write(f"p-value: {p:.4f}")
-                    if p < 0.05:
-                        st.write("There is a significant difference between the two groups.")
-                    else:
-                        st.write("There is no significant difference between the two groups.")
-                else:
-                    st.write("Please select a column with exactly two groups for the t-test.")
+            st.write(f"Total Variation: {total_variation:.4f}")
+            st.write(f"Part-to-Part Variation: {part_variation:.4f}")
+            st.write(f"Gage Variation: {gage_variation:.4f}")
+            st.write(f"Gage R&R: {(gage_variation / total_variation * 100):.2f}%")
+        except Exception as e:
+            st.error(f"Error in Gage R&R analysis: {str(e)}")
 
-            st.subheader("Regression Analysis")
-            response_var = st.selectbox("Select Response Variable", data.select_dtypes(include=[np.number]).columns)
-            predictor_vars = st.multiselect("Select Predictor Variables", data.select_dtypes(include=[np.number]).columns)
-            
-            if st.button("Run Regression Analysis"):
-                if predictor_vars:
-                    formula = f"{response_var} ~ {' + '.join(predictor_vars)}"
-                    try:
-                        model = ols(formula, data).fit()
-                        st.write(model.summary())
-                    except Exception as e:
-                        st.error(f"Error in regression analysis: {str(e)}")
-                else:
-                    st.write("Please select at least one predictor variable.")
+# Analyze phase function
+@st.cache_data
+def analyze_phase(data):
+    st.header("Analyze Phase")
+    st.write("Guidance: In this phase, analyze the data to identify root causes of the problem.")
+    
+    st.subheader("Hypothesis Testing")
+    test_type = st.radio("Select test type", ["Two-Sample t-test", "ANOVA"])
+    
+    if test_type == "Two-Sample t-test":
+        var1 = st.selectbox("Select first variable", data.select_dtypes(include=[np.number]).columns)
+        var2 = st.selectbox("Select second variable", data.select_dtypes(include=[np.number]).columns)
+        
+        if st.button("Perform Two-Sample t-test"):
+            stat, p = ttest_ind(data[var1], data[var2])
+            st.write(f"t-statistic: {stat:.4f}")
+            st.write(f"p-value: {p:.4f}")
+    
+    else:  # ANOVA
+        response_var = st.selectbox("Select response variable", data.select_dtypes(include=[np.number]).columns)
+        group_var = st.selectbox("Select grouping variable", data.select_dtypes(exclude=[np.number]).columns)
+        
+        if st.button("Perform ANOVA"):
+            groups = [group for _, group in data.groupby(group_var)[response_var]]
+            stat, p = f_oneway(*groups)
+            st.write(f"F-statistic: {stat:.4f}")
+            st.write(f"p-value: {p:.4f}")
 
-# Improve stage
-elif option == "Improve":
-    st.title("Improve Stage")
-    st.write("In the Improve stage, you would typically implement solutions based on the analysis from previous stages.")
-    st.write("Here are some common activities in the Improve stage:")
-    
-    activities = [
-        "Brainstorm potential solutions",
-        "Evaluate and prioritize solutions",
-        "Develop implementation plans",
-        "Pilot test solutions",
-        "Analyze pilot test results",
-        "Refine solutions based on pilot results",
-        "Develop full-scale implementation plan"
-    ]
-    
-    for activity in activities:
-        st.checkbox(activity)
-    
-    st.subheader("Solution Tracking")
-    with st.form("solution_tracker"):
-        solution = st.text_input("Solution Description")
-        impact = st.selectbox("Expected Impact", ["High", "Medium", "Low"])
-        effort = st.selectbox("Implementation Effort", ["High", "Medium", "Low"])
-        status = st.selectbox("Status", ["Not Started", "In Progress", "Completed"])
-        add_solution = st.form_submit_button("Add Solution")
-    
-    if add_solution:
-        st.write("Solution added to tracker.")
-        st.table(pd.DataFrame({"Solution": [solution], "Impact": [impact], "Effort": [effort], "Status": [status]}))
+    st.subheader("Correlation Analysis")
+    if st.button("Generate Correlation Heatmap"):
+        corr_matrix = data.select_dtypes(include=[np.number]).corr()
+        fig = px.imshow(corr_matrix, color_continuous_scale='RdBu_r', aspect="auto")
+        st.plotly_chart(fig)
 
-# Control stage
-elif option == "Control":
-    st.title("Control Stage")
-    uploaded_file = st.file_uploader("Upload Data", type=["csv", "xlsx"])
-    
-    if uploaded_file is not None:
-        data = load_data(uploaded_file)
-        if data is not None:
-            st.write("### Data Preview")
-            st.write(data.head())
+    st.subheader("Principal Component Analysis (PCA)")
+    n_components = st.slider("Select number of components", 2, 10)
+    if st.button("Perform PCA"):
+        numeric_data = data.select_dtypes(include=[np.number])
+        scaler = StandardScaler()
+        scaled_data = scaler.fit_transform(numeric_data)
+        pca = PCA(n_components=n_components)
+        pca_result = pca.fit_transform(scaled_data)
+        st.write(f"Explained variance ratio: {pca.explained_variance_ratio_}")
+        fig = px.scatter(x=pca_result[:, 0], y=pca_result[:, 1], labels={'x': 'PC1', 'y': 'PC2'})
+        st.plotly_chart(fig)
 
-            st.subheader("Control Chart")
-            column = st.selectbox("Select Column for Control Chart", data.select_dtypes(include=[np.number]).columns)
-            
-            if st.button("Generate Control Chart"):
-                data['mean'] = data[column].expanding().mean()
-                data['std'] = data[column].expanding().std()
-                data['upper'] = data['mean'] + 3 * data['std']
-                data['lower'] = data['mean'] - 3 * data['std']
-                
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=data.index, y=data[column], mode='lines+markers', name='Data'))
-                fig.add_trace(go.Scatter(x=data.index, y=data['mean'], mode='lines', name='Mean', line=dict(color='green')))
-                fig.add_trace(go.Scatter(x=data.index, y=data['upper'], mode='lines', name='Upper Control Limit', line=dict(color='red', dash='dash')))
-                fig.add_trace(go.Scatter(x=data.index, y=data['lower'], mode='lines', name='Lower Control Limit', line=dict(color='red', dash='dash')))
-                fig.update_layout(title='Control Chart', xaxis_title='Sample', yaxis_title='Value')
-                st.plotly_chart(fig)
-
-            st.subheader("Process Monitoring Plan")
-            with st.form("monitoring_plan"):
-                metric = st.text_input("Metric to Monitor")
-                frequency = st.selectbox("Monitoring Frequency", ["Hourly", "Daily", "Weekly", "Monthly"])
-                responsible = st.text_input("Responsible Person/Team")
-                action_limit = st.number_input("Action Limit")
-                corrective_action = st.text_area("Corrective Action if Limit Exceeded")
-                add_plan = st.form_submit_button("Add to Monitoring Plan")
-            
-            if add_plan:
-                st.write("Added to Process Monitoring Plan:")
-                st.table(pd.DataFrame({
-                    "Metric": [metric],
-                    "Frequency": [frequency],
-                    "Responsible": [responsible],
-                    "Action Limit": [action_limit],
-                    "Corrective Action": [corrective_action]
-                }))
-
-# RACI Matrix
-elif option == "RACI Matrix":
-    st.title("RACI Matrix")
+    st.subheader("Regression Analysis")
+    response_var = st.selectbox("Select Response Variable", data.select_dtypes(include=[np.number]).columns)
+    predictor_vars = st.multiselect("Select Predictor Variables", data.select_dtypes(include=[np.number]).columns)
     
-    with st.form("raci_setup"):
-        roles = st.text_area("Enter Roles (comma separated)")
-        tasks = st.text_area("Enter Tasks (comma separated)")
-        generate_matrix = st.form_submit_button("Generate RACI Matrix")
+    if st.button("Run Regression Analysis"):
+        if predictor_vars:
+            formula = f"{response_var} ~ {' + '.join(predictor_vars)}"
+            try:
+                model = ols(formula, data).fit()
+                st.write(model.summary())
+            except Exception as e:
+                st.error(f"Error in regression analysis: {str(e)}")
+        else:
+            st.write("Please select at least one predictor variable.")
+
+# Improve phase function
+def improve_phase(data):
+    st.header("Improve Phase")
+    st.write("Guidance: In this phase, develop and implement solutions to address root causes.")
     
-    if generate_matrix:
+    st.subheader("Solution Brainstorming")
+    solution = st.text_area("Enter potential solution")
+    impact = st.slider("Estimated Impact", 1, 10)
+    effort = st.slider("Estimated Effort", 1, 10)
+    
+    if st.button("Add Solution"):
+        st.write(f"Solution: {solution}")
+        st.write(f"Impact: {impact}")
+        st.write(f"Effort: {effort}")
+        st.write("Solution added to the list.")
+
+    st.subheader("Implementation Plan")
+    action = st.text_input("Action Item")
+    responsible = st.text_input("Responsible Person")
+    deadline = st.date_input("Deadline")
+    
+    if st.button("Add to Implementation Plan"):
+        st.write(f"Action: {action}")
+        st.write(f"Responsible: {responsible}")
+        st.write(f"Deadline: {deadline}")
+        st.write("Action item added to the implementation plan.")
+
+    st.subheader("Design of Experiments (DOE)")
+    st.write("Guidance: DOE helps in understanding the impact of different factors on the outcome.")
+    factors = st.multiselect("Select Factors for DOE", data.columns)
+    response = st.selectbox("Select Response Variable for DOE", data.select_dtypes(include=[np.number]).columns)
+    num_levels = st.slider("Select Number of Levels for Each Factor", 2, 5, 2)
+    
+    if st.button("Plan DOE"):
+        st.write(f"Factors: {factors}")
+        st.write(f"Response: {response}")
+        st.write(f"Number of Levels: {num_levels}")
+        st.write("DOE plan generated. Implement the experiments based on this plan.")
+
+# Control phase function
+@st.cache_data
+def control_phase(data):
+    st.header("Control Phase")
+    st.write("Guidance: In this phase, implement control measures to sustain the improvements.")
+    
+    st.subheader("Control Chart")
+    control_var = st.selectbox("Select variable for control chart", data.select_dtypes(include=[np.number]).columns)
+    
+    if st.button("Generate Control Chart"):
+        mean = data[control_var].mean()
+        std = data[control_var].std()
+        ucl = mean + 3*std
+        lcl = mean - 3*std
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(y=data[control_var], mode='lines+markers', name='Data'))
+        fig.add_trace(go.Scatter(y=[mean]*len(data), mode='lines', name='Mean', line=dict(color='green')))
+        fig.add_trace(go.Scatter(y=[ucl]*len(data), mode='lines', name='UCL', line=dict(color='red', dash='dash')))
+        fig.add_trace(go.Scatter(y=[lcl]*len(data), mode='lines', name='LCL', line=dict(color='red', dash='dash')))
+        fig.update_layout(title='Control Chart', xaxis_title='Sample', yaxis_title='Value')
+        st.plotly_chart(fig)
+
+    st.subheader("Process Documentation")
+    process_name = st.text_input("Process Name")
+    process_steps = st.text_area("Process Steps")
+    control_measures = st.text_area("Control Measures")
+    
+    if st.button("Document Process"):
+        st.write(f"Process: {process_name}")
+        st.write(f"Steps: {process_steps}")
+        st.write(f"Control Measures: {control_measures}")
+        st.write("Process documented successfully.")
+
+    st.subheader("Standardization and Training")
+    standard_procedure = st.text_area("Standard Operating Procedure")
+    training_plan = st.text_area("Training Plan")
+    
+    if st.button("Record Standardization and Training Plan"):
+        st.write("Standard Operating Procedure:")
+        st.write(standard_procedure)
+        st.write("Training Plan:")
+        st.write(training_plan)
+        st.write("Standardization and training plan recorded.")
+
+# RACI Matrix function
+def raci_matrix():
+    st.header("RACI Matrix")
+    st.write("Guidance: RACI Matrix helps in clarifying roles and responsibilities for each task.")
+    
+    roles = st.text_area("Enter Roles (comma separated)")
+    tasks = st.text_area("Enter Tasks (comma separated)")
+    
+    if st.button("Generate RACI Matrix"):
         roles_list = [role.strip() for role in roles.split(',')]
         tasks_list = [task.strip() for task in tasks.split(',')]
         raci_df = pd.DataFrame(index=tasks_list, columns=roles_list)
         
         for task in tasks_list:
-            st.subheader(f"Task: {task}")
+            st.write(f"Task: {task}")
             cols = st.columns(len(roles_list))
             for i, role in enumerate(roles_list):
                 with cols[i]:
@@ -318,11 +331,5 @@ elif option == "RACI Matrix":
             mime="text/csv",
         )
 
-# Footer
-st.sidebar.markdown("---")
-st.sidebar.info("Data Dojo Stats Assistant v1.0")
-st.sidebar.info("© 2024 Data Dojo")
-
-# Main page footer
-st.markdown("---")
-st.write("Thank you for using the Data Dojo Stats Assistant for Six Sigma Projects. For support, please contact datadojo9@gmail.com")
+if __name__ == "__main__":
+    main()
