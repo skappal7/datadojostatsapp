@@ -196,6 +196,7 @@ def measurement_system_analysis(data):
             
         except Exception as e:
             st.error(f"Error in Gage R&R analysis: {str(e)}")
+
 def process_capability_analysis(data):
     st.subheader("Process Capability Analysis")
     process_column = st.selectbox("Select process measurement column", data.select_dtypes(include=[np.number]).columns, key="capability_process_col")
@@ -301,34 +302,11 @@ def hypothesis_testing(data):
     elif test_type == "One-Way ANOVA":
         value_column = st.selectbox("Select value column", data.select_dtypes(include=[np.number]).columns, key="anova_value")
         group_column = st.selectbox("Select grouping column", data.select_dtypes(exclude=[np.number]).columns, key="anova_group")
-    if st.button("Perform One-Way ANOVA", key="perform_anova"):
-        groups = [group for name, group in data.groupby(group_column)[value_column]]
-        f_stat, p_value = stats.f_oneway(*groups)
-        st.write(f"F-statistic: {f_stat:.4f}")
-        st.write(f"p-value: {p_value:.4f}")
-        
-        # Interpretation
-        st.subheader("Interpretation:")
-        if p_value < 0.05:
-            st.write("The p-value is less than 0.05, suggesting that there are statistically significant differences between the group means.")
-            st.write("This indicates that the grouping variable has a significant effect on the value variable.")
-        else:
-            st.write("The p-value is greater than or equal to 0.05, suggesting that there are no statistically significant differences between the group means.")
-            st.write("This indicates that the grouping variable does not have a significant effect on the value variable.")
-        
-        st.write("\nNext steps:")
-        if p_value < 0.05:
-            st.write("1. Conduct post-hoc tests (e.g., Tukey's HSD) to determine which specific groups differ from each other.")
-            st.write("2. Examine the practical significance of the differences between groups.")
-            st.write("3. Consider the results in the context of your project goals and make appropriate decisions or recommendations.")
-        else:
-            st.write("1. Consider other factors that might influence the value variable.")
-            st.write("2. Re-evaluate your hypothesis or the choice of variables.")
-            st.write("3. If appropriate, consider increasing your sample size to improve the power of the test.")
-        
-        # Visualization
-        fig = px.box(data, x=group_column, y=value_column, title="One-Way ANOVA Box Plot")
-        st.plotly_chart(fig)
+        if st.button("Perform One-Way ANOVA", key="perform_anova"):
+            groups = [group for name, group in data.groupby(group_column)[value_column]]
+            f_stat, p_value = stats.f_oneway(*groups)
+            st.write(f"F-statistic: {f_stat:.4f}")
+            st.write(f"p-value: {p_value:.4f}")
 
     elif test_type == "Chi-Square Test":
         column1 = st.selectbox("Select first categorical column", data.select_dtypes(exclude=[np.number]).columns, key="chi_column1")
