@@ -41,7 +41,7 @@ elif option == "Measure":
     uploaded_file = st.file_uploader("Upload Data", type=["csv"])
     if uploaded_file is not None:
         try:
-            data = pd.read_csv(uploaded_file, encoding='ISO-8859-1')
+            data = pd.read_csv(uploaded_file, encoding='ISO-8859-1', low_memory=False)
             st.write("### Data Preview")
             st.write(data.head())
             
@@ -86,7 +86,7 @@ elif option == "Analyze":
     uploaded_file = st.file_uploader("Upload Data", type=["csv"])
     if uploaded_file is not None:
         try:
-            data = pd.read_csv(uploaded_file, encoding='ISO-8859-1')
+            data = pd.read_csv(uploaded_file, encoding='ISO-8859-1', low_memory=False)
             st.write("### Data Preview")
             st.write(data.head())
 
@@ -160,4 +160,4 @@ elif option == "RACI Matrix":
         st.write("### RACI Matrix")
         st.write(raci_df)
 
-# To run the app, use the command: streamlit run your_script.py
+# To run the app, use the command: streamlit run app.py
