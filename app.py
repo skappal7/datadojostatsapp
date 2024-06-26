@@ -196,7 +196,6 @@ def measurement_system_analysis(data):
             
         except Exception as e:
             st.error(f"Error in Gage R&R analysis: {str(e)}")
-
 def process_capability_analysis(data):
     st.subheader("Process Capability Analysis")
     process_column = st.selectbox("Select process measurement column", data.select_dtypes(include=[np.number]).columns, key="capability_process_col")
@@ -213,6 +212,33 @@ def process_capability_analysis(data):
         st.write(f"Process Standard Deviation: {std:.4f}")
         st.write(f"Cp: {cp:.4f}")
         st.write(f"Cpk: {cpk:.4f}")
+        
+        # Interpretation
+        st.subheader("Interpretation:")
+        if cp < 1:
+            st.write("Cp < 1: The process is not capable. It produces defects above the acceptable rate.")
+        elif 1 <= cp < 1.33:
+            st.write("1 ≤ Cp < 1.33: The process is marginally capable. Improvement efforts should be considered.")
+        else:
+            st.write("Cp ≥ 1.33: The process is capable.")
+        
+        if cpk < 1:
+            st.write("Cpk < 1: The process is not centered within the specification limits and/or not capable.")
+        elif 1 <= cpk < 1.33:
+            st.write("1 ≤ Cpk < 1.33: The process is marginally capable and may need centering or improvement.")
+        else:
+            st.write("Cpk ≥ 1.33: The process is capable and centered.")
+        
+        # Next steps
+        st.subheader("Next Steps:")
+        if cp < 1.33 or cpk < 1.33:
+            st.write("1. Investigate sources of variation in the process.")
+            st.write("2. Implement process improvements to reduce variation.")
+            st.write("3. If Cpk is significantly lower than Cp, consider centering the process.")
+            st.write("4. Re-evaluate process capability after improvements.")
+        else:
+            st.write("1. Monitor the process to maintain current performance.")
+            st.write("2. Consider tightening specifications if business needs require it.")
         
         # Visualization
         fig = go.Figure()
@@ -271,15 +297,38 @@ def hypothesis_testing(data):
             t_stat, p_value = stats.ttest_rel(data[column1], data[column2])
             st.write(f"t-statistic: {t_stat:.4f}")
             st.write(f"p-value: {p_value:.4f}")
-    
+
     elif test_type == "One-Way ANOVA":
-        value_column = st.selectbox("Select value column", data.select_dtypes(include=[np.number]).columns, key="anova_value")
-        group_column = st.selectbox("Select grouping column", data.select_dtypes(exclude=[np.number]).columns, key="anova_group")
-        if st.button("Perform One-Way ANOVA", key="perform_anova"):
-            groups = [group for name, group in data.groupby(group_column)[value_column]]
-            f_stat, p_value = stats.f_oneway(*groups)
-            st.write(f"F-statistic: {f_stat:.4f}")
-            st.write(f"p-value: {p_value:.4f}")
+    value_column = st.selectbox("Select value column", data.select_dtypes(include=[np.number]).columns, key="anova_value")
+    group_column = st.selectbox("Select grouping column", data.select_dtypes(exclude=[np.number]).columns, key="anova_group")
+    if st.button("Perform One-Way ANOVA", key="perform_anova"):
+        groups = [group for name, group in data.groupby(group_column)[value_column]]
+        f_stat, p_value = stats.f_oneway(*groups)
+        st.write(f"F-statistic: {f_stat:.4f}")
+        st.write(f"p-value: {p_value:.4f}")
+        
+        # Interpretation
+        st.subheader("Interpretation:")
+        if p_value < 0.05:
+            st.write("The p-value is less than 0.05, suggesting that there are statistically significant differences between the group means.")
+            st.write("This indicates that the grouping variable has a significant effect on the value variable.")
+        else:
+            st.write("The p-value is greater than or equal to 0.05, suggesting that there are no statistically significant differences between the group means.")
+            st.write("This indicates that the grouping variable does not have a significant effect on the value variable.")
+        
+        st.write("\nNext steps:")
+        if p_value < 0.05:
+            st.write("1. Conduct post-hoc tests (e.g., Tukey's HSD) to determine which specific groups differ from each other.")
+            st.write("2. Examine the practical significance of the differences between groups.")
+            st.write("3. Consider the results in the context of your project goals and make appropriate decisions or recommendations.")
+        else:
+            st.write("1. Consider other factors that might influence the value variable.")
+            st.write("2. Re-evaluate your hypothesis or the choice of variables.")
+            st.write("3. If appropriate, consider increasing your sample size to improve the power of the test.")
+        
+        # Visualization
+        fig = px.box(data, x=group_column, y=value_column, title="One-Way ANOVA Box Plot")
+        st.plotly_chart(fig)
 
     elif test_type == "Chi-Square Test":
         column1 = st.selectbox("Select first categorical column", data.select_dtypes(exclude=[np.number]).columns, key="chi_column1")
@@ -315,12 +364,25 @@ def regression_analysis(data):
                 model = ols(formula, data).fit()
                 st.write(model.summary())
                 
+                # Interpretation
+                st.subheader("Interpretation:")
+                st.write(f"R-squared: {model.rsquared:.4f}")
+                st.write(f"Adjusted R-squared: {model.rsquared_adj:.4f}")
+                st.write("R-squared represents the proportion of variance in the dependent variable explained by the independent variables.")
+                
+                st.write("\nSignificant predictors (p-value < 0.05):")
+                for var, p_value in model.pvalues.items():
+                    if p_value < 0.05:
+                        st.write(f"- {var}: p-value = {p_value:.4f}")
+                
                 # Residual plot
                 residuals = model.resid
                 fitted_values = model.fittedvalues
                 fig = px.scatter(x=fitted_values, y=residuals, labels={'x': 'Fitted values', 'y': 'Residuals'})
                 fig.update_layout(title="Residual Plot")
                 st.plotly_chart(fig)
+                
+                st.write("The residual plot helps assess if the linear regression assumptions are met. Look for random scatter around the horizontal line at 0.")
                 
             except Exception as e:
                 st.error(f"Error in regression analysis: {str(e)}")
