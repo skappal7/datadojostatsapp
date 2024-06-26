@@ -7,12 +7,12 @@ from statsmodels.formula.api import ols
 from scipy.stats import ttest_ind, f_oneway
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+import itertools
 
 # Set page config
 st.set_page_config(page_title="Data Dojo Stats Assistant", layout="wide")
 
-# Caching data load function
-@st.cache_data
+# Utility function to load data
 def load_data(file):
     try:
         if file.name.endswith('.csv'):
@@ -97,7 +97,6 @@ def define_phase(data):
         st.table(pd.DataFrame(sipoc_data))
 
 # Measure phase function
-@st.cache_data
 def measure_phase(data):
     st.header("Measure Phase")
     st.write("Guidance: In this phase, measure the current process and collect relevant data.")
@@ -110,12 +109,12 @@ def measure_phase(data):
     column = st.selectbox("Select a column for visualization", data.select_dtypes(include=[np.number]).columns)
     chart_type = st.radio("Select chart type", ["Histogram", "Box Plot"])
     
-    if chart_type == "Histogram":
-        fig = px.histogram(data, x=column)
-    else:
-        fig = px.box(data, y=column)
-    
-    st.plotly_chart(fig)
+    if st.button("Generate Chart"):
+        if chart_type == "Histogram":
+            fig = px.histogram(data, x=column)
+        else:
+            fig = px.box(data, y=column)
+        st.plotly_chart(fig)
 
     st.subheader("Process Capability Analysis")
     process_column = st.selectbox("Select process measurement column", data.select_dtypes(include=[np.number]).columns)
@@ -154,11 +153,22 @@ def measure_phase(data):
             st.error(f"Error in Gage R&R analysis: {str(e)}")
 
 # Analyze phase function
-@st.cache_data
 def analyze_phase(data):
     st.header("Analyze Phase")
     st.write("Guidance: In this phase, analyze the data to identify root causes of the problem.")
     
+    analysis_type = st.selectbox("Choose analysis type", ["Hypothesis Testing", "Correlation Analysis", "Principal Component Analysis", "Regression Analysis"])
+
+    if analysis_type == "Hypothesis Testing":
+        hypothesis_testing(data)
+    elif analysis_type == "Correlation Analysis":
+        correlation_analysis(data)
+    elif analysis_type == "Principal Component Analysis":
+        pca_analysis(data)
+    elif analysis_type == "Regression Analysis":
+        regression_analysis(data)
+
+def hypothesis_testing(data):
     st.subheader("Hypothesis Testing")
     test_type = st.radio("Select test type", ["Two-Sample t-test", "ANOVA"])
     
@@ -181,12 +191,14 @@ def analyze_phase(data):
             st.write(f"F-statistic: {stat:.4f}")
             st.write(f"p-value: {p:.4f}")
 
+def correlation_analysis(data):
     st.subheader("Correlation Analysis")
     if st.button("Generate Correlation Heatmap"):
         corr_matrix = data.select_dtypes(include=[np.number]).corr()
         fig = px.imshow(corr_matrix, color_continuous_scale='RdBu_r', aspect="auto")
         st.plotly_chart(fig)
 
+def pca_analysis(data):
     st.subheader("Principal Component Analysis (PCA)")
     n_components = st.slider("Select number of components", 2, 10)
     if st.button("Perform PCA"):
@@ -199,6 +211,7 @@ def analyze_phase(data):
         fig = px.scatter(x=pca_result[:, 0], y=pca_result[:, 1], labels={'x': 'PC1', 'y': 'PC2'})
         st.plotly_chart(fig)
 
+def regression_analysis(data):
     st.subheader("Regression Analysis")
     response_var = st.selectbox("Select Response Variable", data.select_dtypes(include=[np.number]).columns)
     predictor_vars = st.multiselect("Select Predictor Variables", data.select_dtypes(include=[np.number]).columns)
@@ -243,18 +256,35 @@ def improve_phase(data):
 
     st.subheader("Design of Experiments (DOE)")
     st.write("Guidance: DOE helps in understanding the impact of different factors on the outcome.")
-    factors = st.multiselect("Select Factors for DOE", data.columns)
-    response = st.selectbox("Select Response Variable for DOE", data.select_dtypes(include=[np.number]).columns)
+    
+    # Only allow selection of numeric columns for factors
+    numeric_columns = data.select_dtypes(include=[np.number]).columns
+    factors = st.multiselect("Select Factors for DOE", numeric_columns)
+    
+    # Allow selection of any column for response variable
+    response = st.selectbox("Select Response Variable for DOE", data.columns)
+    
     num_levels = st.slider("Select Number of Levels for Each Factor", 2, 5, 2)
     
     if st.button("Plan DOE"):
-        st.write(f"Factors: {factors}")
-        st.write(f"Response: {response}")
-        st.write(f"Number of Levels: {num_levels}")
-        st.write("DOE plan generated. Implement the experiments based on this plan.")
+        if factors and response:
+            st.write(f"Factors: {factors}")
+            st.write(f"Response: {response}")
+            st.write(f"Number of Levels: {num_levels}")
+            
+            # Generate a basic full factorial design
+            design = pd.DataFrame(list(itertools.product(*[range(num_levels) for _ in factors])), columns=factors)
+            st.write("Experimental Design:")
+            st.write(design)
+            
+            st.write("Next steps:")
+            st.write("1. Conduct experiments based on this design")
+            st.write("2. Collect response variable data for each experiment")
+            st.write("3. Analyze results to determine factor effects")
+        else:
+            st.warning("Please select at least one factor and a response variable.")
 
 # Control phase function
-@st.cache_data
 def control_phase(data):
     st.header("Control Phase")
     st.write("Guidance: In this phase, implement control measures to sustain the improvements.")
