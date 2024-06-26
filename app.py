@@ -5,8 +5,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from statsmodels.formula.api import ols
 from scipy.stats import ttest_ind, f_oneway
-from scikit-learn.preprocessing import StandardScaler
-from scikit-learn.decomposition import PCA
+from scikit_learn.preprocessing import StandardScaler
+from scikit_learn.decomposition import PCA
 
 # Set page config
 st.set_page_config(page_title="Data Dojo Stats Assistant", layout="wide")
