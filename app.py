@@ -191,4 +191,9 @@ elif option == "RACI Matrix":
         raci_df = pd.DataFrame(index=tasks_list, columns=roles_list)
         for task in tasks_list:
             for role in roles_list:
-                responsibility = st.selectbox(f"Select responsibility for {role} on {task}", ["Responsible", "Accountable", "
+                responsibility = st.selectbox(f"Select responsibility for {role} on {task}", ["Responsible", "Accountable", "Consulted", "Informed"], key=f"{task}_{role}")
+                raci_df.at[task, role] = responsibility
+        st.write("### RACI Matrix")
+        st.write(raci_df)
+
+# To run the app, use the command: streamlit run app.py
