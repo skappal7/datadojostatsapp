@@ -4,12 +4,24 @@ import numpy as np
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.figure_factory as ff
-from statsmodels.stats.weightstats import ztest
-from scipy.stats import ttest_ind, chi2_contingency, f_oneway
+from statsmodels.formula.api import ols
+from scipy.stats import ttest_ind
+from io import BytesIO
 
 # Define navigation menu
-st.sidebar.title("Six Sigma DMAIC/DMADV App")
+st.sidebar.title("Data Dojo Stats Assistant for Six Sigma Projects")
 option = st.sidebar.selectbox("Choose a stage", ["Define", "Measure", "Analyze", "Improve", "Control", "RACI Matrix"])
+
+# Utility function to load data
+def load_data(file):
+    if file.name.endswith('.csv'):
+        data = pd.read_csv(file, encoding='utf-8', low_memory=False)
+    elif file.name.endswith('.xlsx'):
+        data = pd.read_excel(file, sheet_name=0)
+    else:
+        st.error("Unsupported file type. Please upload a CSV or Excel file.")
+        return None
+    return data
 
 # Define stage
 if option == "Define":
@@ -38,10 +50,10 @@ if option == "Define":
 # Measure stage
 elif option == "Measure":
     st.title("Measure Stage")
-    uploaded_file = st.file_uploader("Upload Data", type=["csv"])
+    uploaded_file = st.file_uploader("Upload Data", type=["csv", "xlsx"])
     if uploaded_file is not None:
-        try:
-            data = pd.read_csv(uploaded_file, encoding='ISO-8859-1', low_memory=False)
+        data = load_data(uploaded_file)
+        if data is not None:
             st.write("### Data Preview")
             st.write(data.head())
             
@@ -62,11 +74,10 @@ elif option == "Measure":
                     'Measurement': np.random.normal(loc=10, scale=2, size=parts*operators*measurements)
                 })
                 st.write(data_rr)
-                # Gage R&R analysis here
+                # Placeholder for Gage R&R analysis
 
             if st.button("Capability Analysis"):
                 st.write("### Capability Analysis")
-                # Simulating Capability Analysis
                 st.write("Capability analysis requires specification limits (LSL, USL).")
                 lsl = st.number_input("Lower Specification Limit", value=0.0)
                 usl = st.number_input("Upper Specification Limit", value=10.0)
@@ -77,16 +88,14 @@ elif option == "Measure":
                     cp = (usl - lsl) / (6 * std_dev)
                     st.write(f"Process Capability (Cp): {cp}")
                     st.write(f"Mean: {mean}, Standard Deviation: {std_dev}")
-        except Exception as e:
-            st.error(f"Error reading the file: {e}")
 
 # Analyze stage
 elif option == "Analyze":
     st.title("Analyze Stage")
-    uploaded_file = st.file_uploader("Upload Data", type=["csv"])
+    uploaded_file = st.file_uploader("Upload Data", type=["csv", "xlsx"])
     if uploaded_file is not None:
-        try:
-            data = pd.read_csv(uploaded_file, encoding='ISO-8859-1', low_memory=False)
+        data = load_data(uploaded_file)
+        if data is not None:
             st.write("### Data Preview")
             st.write(data.head())
 
@@ -104,7 +113,7 @@ elif option == "Analyze":
             if st.button("Cause-and-Effect Diagram"):
                 st.write("### Cause-and-Effect Diagram (Fishbone)")
                 st.write("To implement a fishbone diagram, consider using a visualization library like Plotly.")
-                # Implement fishbone diagram here
+                # Placeholder for fishbone diagram
 
             if st.button("Perform Hypothesis Test"):
                 group_col = st.selectbox("Select Group Column", data.columns)
@@ -120,29 +129,56 @@ elif option == "Analyze":
 
             if st.button("Regression Analysis"):
                 st.write("### Regression Analysis")
-                st.write("For a full regression analysis, consider using statsmodels or sklearn.")
-                # Implement regression analysis here
+                response_var = st.selectbox("Select Response Variable", data.columns)
+                predictor_vars = st.multiselect("Select Predictor Variables", data.columns)
+                formula = f"{response_var} ~ {' + '.join(predictor_vars)}"
+                model = ols(formula, data).fit()
+                st.write(model.summary())
 
             if st.button("FMEA"):
                 st.write("### FMEA (Failure Mode and Effects Analysis)")
-                st.write("To implement FMEA, create a form to input failure modes, effects, and causes.")
-                # Implement FMEA here
-        except Exception as e:
-            st.error(f"Error reading the file: {e}")
+                fmea_data = st.file_uploader("Upload FMEA Data", type=["csv", "xlsx"])
+                if fmea_data is not None:
+                    fmea_df = load_data(fmea_data)
+                    st.write(fmea_df)
+                # Placeholder for FMEA analysis
 
 # Improve stage
 elif option == "Improve":
     st.title("Improve Stage")
-    st.write("### Implement improvement tools here")
-    st.write("Tools like Design of Experiments (DOE) and simulation modeling can be implemented.")
-    # Implement improvement tools here
+    uploaded_file = st.file_uploader("Upload Data", type=["csv", "xlsx"])
+    if uploaded_file is not None:
+        data = load_data(uploaded_file)
+        if data is not None:
+            st.write("### Data Preview")
+            st.write(data.head())
+
+            if st.button("Design of Experiments (DOE)"):
+                st.write("### Design of Experiments (DOE)")
+                factors = st.multiselect("Select Factors for DOE", data.columns)
+                response = st.selectbox("Select Response Variable for DOE", data.columns)
+                num_levels = st.slider("Select Number of Levels for Each Factor", 2, 5, 2)
+                # Placeholder for DOE implementation
+                st.write(f"Factors: {factors}, Response: {response}, Levels: {num_levels}")
 
 # Control stage
 elif option == "Control":
     st.title("Control Stage")
-    st.write("### Implement control tools here")
-    st.write("Control tools like control charts and SOPs can be implemented here.")
-    # Implement control tools here
+    uploaded_file = st.file_uploader("Upload Data", type=["csv", "xlsx"])
+    if uploaded_file is not None:
+        data = load_data(uploaded_file)
+        if data is not None:
+            st.write("### Data Preview")
+            st.write(data.head())
+
+            if st.button("Control Chart"):
+                st.write("### Control Chart")
+                column = st.selectbox("Select Column for Control Chart", data.columns)
+                data['mean'] = data[column].expanding().mean()
+                data['upper'] = data['mean'] + 3 * data[column].expanding().std()
+                data['lower'] = data['mean'] - 3 * data[column].expanding().std()
+                fig = px.line(data, y=[column, 'mean', 'upper', 'lower'], title='Control Chart')
+                st.plotly_chart(fig)
 
 # RACI Matrix
 elif option == "RACI Matrix":
@@ -155,9 +191,4 @@ elif option == "RACI Matrix":
         raci_df = pd.DataFrame(index=tasks_list, columns=roles_list)
         for task in tasks_list:
             for role in roles_list:
-                responsibility = st.selectbox(f"Select responsibility for {role} on {task}", ["Responsible", "Accountable", "Consulted", "Informed"], key=f"{task}_{role}")
-                raci_df.at[task, role] = responsibility
-        st.write("### RACI Matrix")
-        st.write(raci_df)
-
-# To run the app, use the command: streamlit run app.py
+                responsibility = st.selectbox(f"Select responsibility for {role} on {task}", ["Responsible", "Accountable", "
