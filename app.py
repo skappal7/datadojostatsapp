@@ -298,7 +298,7 @@ elif option == "RACI Matrix":
         tasks_list = [task.strip() for task in tasks.split(',')]
         raci_df = pd.DataFrame(index=tasks_list, columns=roles_list)
         
-for task in tasks_list:
+        for task in tasks_list:
             st.subheader(f"Task: {task}")
             cols = st.columns(len(roles_list))
             for i, role in enumerate(roles_list):
@@ -325,4 +325,4 @@ st.sidebar.info("© 2024 Your Company Name")
 
 # Main page footer
 st.markdown("---")
-st.write("Thank you for using the Data Dojo Stats Assistant for Six Sigma Projects. For support, please contact support@yourdomain.com")    
+st.write("Thank you for using the Data Dojo Stats Assistant for Six Sigma Projects. For support, please contact support@yourdomain.com")
