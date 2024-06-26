@@ -299,8 +299,8 @@ def hypothesis_testing(data):
             st.write(f"p-value: {p_value:.4f}")
 
     elif test_type == "One-Way ANOVA":
-    value_column = st.selectbox("Select value column", data.select_dtypes(include=[np.number]).columns, key="anova_value")
-    group_column = st.selectbox("Select grouping column", data.select_dtypes(exclude=[np.number]).columns, key="anova_group")
+        value_column = st.selectbox("Select value column", data.select_dtypes(include=[np.number]).columns, key="anova_value")
+        group_column = st.selectbox("Select grouping column", data.select_dtypes(exclude=[np.number]).columns, key="anova_group")
     if st.button("Perform One-Way ANOVA", key="perform_anova"):
         groups = [group for name, group in data.groupby(group_column)[value_column]]
         f_stat, p_value = stats.f_oneway(*groups)
