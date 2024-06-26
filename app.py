@@ -321,8 +321,8 @@ elif option == "RACI Matrix":
 # Footer
 st.sidebar.markdown("---")
 st.sidebar.info("Data Dojo Stats Assistant v1.0")
-st.sidebar.info("© 2024 Your Company Name")
+st.sidebar.info("© 2024 Data Dojo")
 
 # Main page footer
 st.markdown("---")
-st.write("Thank you for using the Data Dojo Stats Assistant for Six Sigma Projects. For support, please contact support@yourdomain.com")
+st.write("Thank you for using the Data Dojo Stats Assistant for Six Sigma Projects. For support, please contact datadojo9@gmail.com")
