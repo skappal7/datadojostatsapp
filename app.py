@@ -496,13 +496,12 @@ def raci_matrix():
         
         raci_df = pd.DataFrame(index=tasks_list, columns=roles_list)
         
-        for task in tasks_list:
+        for i, task in enumerate(tasks_list):
             st.write(f"Task: {task}")
-            cols = st.columns(len(roles_list))
-            for i, role in enumerate(roles_list):
-                with cols[i]:
-                    responsibility = st.selectbox(f"{role}", ["", "R", "A", "C", "I"], key=f"{task}_{role}")
-                    raci_df.at[task, role] = responsibility
+            for j, role in enumerate(roles_list):
+                key = f"raci_{i}_{j}"  # Create a unique key for each selectbox
+                responsibility = st.selectbox(f"{role}", ["", "R", "A", "C", "I"], key=key)
+                raci_df.at[task, role] = responsibility
         
         st.write("### RACI Matrix")
         st.table(raci_df)
