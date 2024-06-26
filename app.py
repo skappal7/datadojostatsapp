@@ -280,7 +280,8 @@ def hypothesis_testing(data):
             f_stat, p_value = stats.f_oneway(*groups)
             st.write(f"F-statistic: {f_stat:.4f}")
             st.write(f"p-value: {p_value:.4f}")
-elif test_type == "Chi-Square Test":
+
+    elif test_type == "Chi-Square Test":
         column1 = st.selectbox("Select first categorical column", data.select_dtypes(exclude=[np.number]).columns, key="chi_column1")
         column2 = st.selectbox("Select second categorical column", data.select_dtypes(exclude=[np.number]).columns, key="chi_column2")
         if st.button("Perform Chi-Square Test", key="perform_chi_square"):
